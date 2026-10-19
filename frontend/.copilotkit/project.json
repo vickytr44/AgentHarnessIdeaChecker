@@ -1,0 +1,8 @@
+{
+  "projectId": "13772",
+  "projectSlug": "chatgroup",
+  "clerkOrgId": "org_37WSv0LIW5hlW1O3dC4COR285pc",
+  "telemetryBindingId": "be56504b-5a0e-4ae7-bfdc-2ec4869472e4",
+  "runtimeUrl": "http://localhost:3000/api/copilotkit",
+  "apiKeyDirectory": "."
+}

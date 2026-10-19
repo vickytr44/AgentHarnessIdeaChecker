@@ -1,0 +1,6 @@
+@AgentHarness_HostAddress = http://localhost:5053
+
+GET {{AgentHarness_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

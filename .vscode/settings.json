@@ -1,0 +1,4 @@
+{
+  "dotnet.defaultSolution": "ChatGroup.sln",
+  "omnisharp.defaultSolution": "ChatGroup.sln"
+}
