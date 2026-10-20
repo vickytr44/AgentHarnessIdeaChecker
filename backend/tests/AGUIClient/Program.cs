@@ -9,11 +9,21 @@ Console.WriteLine($"[AG-UI Client] Target Server URL: {serverUrl}");
 using HttpClient httpClient = new() { Timeout = TimeSpan.FromSeconds(60) };
 var chatClient = new AGUIChatClient(new(httpClient, serverUrl));
 
+var askUserChoiceTool = AIFunctionFactory.Create(
+    (string question, string? description, string? category, object[] options, bool? allowMultiple) => "mock_response",
+    name: "ask_user_choice",
+    description: "Prompts the user with interactive, clickable options when asking clarifying questions or selecting target markets.");
+
+var requestPlanApprovalTool = AIFunctionFactory.Create(
+    (string? planTitle, string? planSummary, string[]? steps) => "mock_response",
+    name: "request_plan_approval",
+    description: "Presents the evaluation plan to the user with an interactive 'Approve & Execute' button.");
+
 AIAgent agent = chatClient.AsAIAgent(
     instructions: null,
     name: "agui-client",
     description: "AG-UI Client Agent",
-    tools: []);
+    tools: [askUserChoiceTool, requestPlanApprovalTool]);
 
 var session = await agent.CreateSessionAsync();
 
@@ -63,6 +73,9 @@ for (int i = 0; i < testPrompts.Length; i++)
             {
                 case TextContent textContent:
                     Console.Write(textContent.Text);
+                    break;
+                case FunctionCallContent call:
+                    Console.WriteLine($"\n[CLIENT TOOL CALL INTERCEPTED] Tool: {call.Name}, Arguments: {System.Text.Json.JsonSerializer.Serialize(call.Arguments)}");
                     break;
                 case ErrorContent errorContent:
                     Console.WriteLine($"\n[Error Content] Message: {errorContent.Message}");

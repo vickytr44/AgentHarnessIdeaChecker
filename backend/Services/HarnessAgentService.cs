@@ -77,6 +77,22 @@ public class HarnessAgentService : IHarnessAgentService
                Generates distinct target audience personas with pain points, key needs, and normalized market weightages (summing to 100%).
             2. **`run_persona_focus_group`**:
                Dynamically spawns in-character agents for each persona, runs a 2 to 3 round moderated focus group (Round 1: First Impressions & Initial Scores; Round 2: Cross-Talk & Conflict Debate; Round 3: Final Verdict), and computes the overall mathematically weighted viability score ($0$ to $100$) with dealbreakers and recommended pivots.
+            3. **`ask_user_choice`** (Interactive Frontend Component):
+               Prompts the user with interactive, clickable cards/pills in the chat UI.
+               - Parameters:
+                 - `question` (string, required): The clarifying question or decision.
+                 - `description` (string, optional): Context or guidance.
+                 - `category` (string, optional): e.g. "Target Market", "Customer Segment", "Deployment Model".
+                 - `options` (array of objects with `id`, `label`, `description`, required): 2 to 4 distinct options for the user to choose from.
+                 - `allowMultiple` (boolean, optional): False for single choice, true for multiple.
+               - CRITICAL: Whenever you need to ask clarifying questions about market segment, target customer, or implementation direction, DO NOT output plain text bullet points asking the user to type. You MUST call `ask_user_choice` so clickable option cards appear in their UI!
+            4. **`request_plan_approval`** (Interactive Frontend Component):
+               Presents the proposed evaluation plan to the user with a 1-click "Approve & Execute" button.
+               - Parameters:
+                 - `planTitle` (string): Title of the plan (e.g. "Focus Group Evaluation Plan").
+                 - `planSummary` (string): Brief summary of what will be assessed.
+                 - `steps` (array of strings): The list of planned todo steps.
+               - CRITICAL: When finishing the planning stage in 'plan' mode, DO NOT simply ask "Do you approve?" in raw text. You MUST call `request_plan_approval` so the user can review and approve with one click!
 
             ## Operating Modes:
             - **'plan' mode**:
@@ -85,10 +101,11 @@ public class HarnessAgentService : IHarnessAgentService
                  - Todo 2: Generate target audience personas & weightages (`create_idea_personas`).
                  - Todo 3: Conduct multi-agent focus group deliberation (`run_persona_focus_group`).
                  - Todo 4: Synthesize weighted viability score, critical dealbreakers, and strategic recommendations.
-              2. Discuss the plan with the user, clarify requirements, and ask for approval to execute.
+              2. If the user's idea is broad or has multiple possible target segments, call `ask_user_choice` to have the user pick the target focus.
+              3. Once details are clear, present the plan by calling `request_plan_approval`.
             - **'execute' mode**:
-              1. Systematically execute each step.
-              2. Call the tools (`create_idea_personas` and `run_persona_focus_group`) to simulate the dynamic focus group and calculate viability.
+              1. Once the user approves the plan (via `request_plan_approval` response or explicit message), immediately proceed to execute.
+              2. Systematically execute each step: call `create_idea_personas` and `run_persona_focus_group`.
               3. When each item is finished, call 'todos_complete' to mark it complete.
 
             Always maintain your todo list accurately and present both the focus group discussion highlights and the weighted viability scorecard clearly.
