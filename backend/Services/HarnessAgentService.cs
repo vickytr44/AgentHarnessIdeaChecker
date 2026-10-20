@@ -111,36 +111,6 @@ public class HarnessAgentService : IHarnessAgentService
             description: "Spawns dynamic in-character persona agents to conduct a 2 to 3 round focus group debate (first impressions, cross-talk conflict, final verdict), and produces a mathematically weighted viability scorecard with critical dealbreakers."
         );
 
-        // Tool 3: Ask User Choice (Frontend Interactive Card)
-        var askUserChoiceTool = AIFunctionFactory.Create(
-            (
-                [Description("The question to ask the user.")] string question,
-                [Description("Optional explanatory description.")] string? description,
-                [Description("Optional category label.")] string? category,
-                [Description("List of options.")] object[]? options,
-                [Description("Allow selecting multiple options.")] bool? allowMultiple) =>
-            {
-                logger.LogInformation("Interactive choice presented to user: {Question}", question);
-                return "The interactive options card has been presented to the user in the UI. Awaiting user response.";
-            },
-            name: "ask_user_choice",
-            description: "Prompts the user with interactive, clickable cards/pills in the chat UI for clarifying questions."
-        );
-
-        // Tool 4: Request Plan Approval (Frontend Interactive Card)
-        var requestPlanApprovalTool = AIFunctionFactory.Create(
-            (
-                [Description("Title of the plan.")] string planTitle,
-                [Description("Summary of what will be assessed.")] string planSummary,
-                [Description("The list of planned todo steps.")] string[] steps) =>
-            {
-                logger.LogInformation("Plan approval requested for: {Title}", planTitle);
-                return "The interactive plan approval card has been presented to the user in the UI. Awaiting user approval.";
-            },
-            name: "request_plan_approval",
-            description: "Presents the proposed evaluation plan to the user with a 1-click Approve & Execute button in the UI."
-        );
-
         var systemInstructions = """
             You are the Idea Checker coordinator assistant powered by Google Gemini and Microsoft Agent Framework Harness.
 
@@ -194,7 +164,7 @@ public class HarnessAgentService : IHarnessAgentService
             ChatOptions = new ChatOptions
             {
                 Instructions = systemInstructions,
-                Tools = [createPersonasTool, runFocusGroupTool, askUserChoiceTool, requestPlanApprovalTool]
+                Tools = [createPersonasTool, runFocusGroupTool]
             },
             LoopEvaluators =
             [
