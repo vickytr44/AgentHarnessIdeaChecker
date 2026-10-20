@@ -1209,21 +1209,20 @@ function FocusGroupTableView({
                   avgScore >= 7.5
                     ? "#f0fdf4"
                     : avgScore >= 5.0
-                    ? "#fefce8"
-                    : "#fef2f2",
-                border: `1px solid ${
-                  avgScore >= 7.5
+                      ? "#fefce8"
+                      : "#fef2f2",
+                border: `1px solid ${avgScore >= 7.5
                     ? "#bbf7d0"
                     : avgScore >= 5.0
-                    ? "#fef08a"
-                    : "#fecaca"
-                }`,
+                      ? "#fef08a"
+                      : "#fecaca"
+                  }`,
                 color:
                   avgScore >= 7.5
                     ? "#15803d"
                     : avgScore >= 5.0
-                    ? "#a16207"
-                    : "#b91c1c",
+                      ? "#a16207"
+                      : "#b91c1c",
               }}
             >
               ⭐ {avgScore.toFixed(1)} / 10 Avg Score
@@ -1397,101 +1396,101 @@ function FocusGroupTableView({
             {/* Consensus & Polarization Side-by-Side Cards */}
             {(analysis.consensusPoints.length > 0 ||
               analysis.polarizingPoints.length > 0) && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    analysis.consensusPoints.length > 0 &&
-                    analysis.polarizingPoints.length > 0
-                      ? "repeat(auto-fit, minmax(260px, 1fr))"
-                      : "1fr",
-                  gap: "12px",
-                  marginTop: "12px",
-                }}
-              >
-                {/* Consensus Card */}
-                {analysis.consensusPoints.length > 0 && (
-                  <div
-                    style={{
-                      padding: "12px 14px",
-                      background: "#f0fdf4",
-                      border: "1px solid #bbf7d0",
-                      borderRadius: "10px",
-                    }}
-                  >
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      analysis.consensusPoints.length > 0 &&
+                        analysis.polarizingPoints.length > 0
+                        ? "repeat(auto-fit, minmax(260px, 1fr))"
+                        : "1fr",
+                    gap: "12px",
+                    marginTop: "12px",
+                  }}
+                >
+                  {/* Consensus Card */}
+                  {analysis.consensusPoints.length > 0 && (
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        marginBottom: "8px",
-                        fontWeight: 700,
-                        fontSize: "12px",
-                        color: "#15803d",
+                        padding: "12px 14px",
+                        background: "#f0fdf4",
+                        border: "1px solid #bbf7d0",
+                        borderRadius: "10px",
                       }}
                     >
-                      <span>🤝</span> Points of Panel Consensus
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          marginBottom: "8px",
+                          fontWeight: 700,
+                          fontSize: "12px",
+                          color: "#15803d",
+                        }}
+                      >
+                        <span>🤝</span> Points of Panel Consensus
+                      </div>
+                      <ul
+                        style={{
+                          margin: 0,
+                          paddingLeft: "16px",
+                          fontSize: "12px",
+                          color: "#166534",
+                          lineHeight: "1.55",
+                        }}
+                      >
+                        {analysis.consensusPoints.map((pt, idx) => (
+                          <li key={idx} style={{ marginBottom: "4px" }}>
+                            {pt}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul
-                      style={{
-                        margin: 0,
-                        paddingLeft: "16px",
-                        fontSize: "12px",
-                        color: "#166534",
-                        lineHeight: "1.55",
-                      }}
-                    >
-                      {analysis.consensusPoints.map((pt, idx) => (
-                        <li key={idx} style={{ marginBottom: "4px" }}>
-                          {pt}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                  )}
 
-                {/* Polarizing Points Card */}
-                {analysis.polarizingPoints.length > 0 && (
-                  <div
-                    style={{
-                      padding: "12px 14px",
-                      background: "#fff7ed",
-                      border: "1px solid #fed7aa",
-                      borderRadius: "10px",
-                    }}
-                  >
+                  {/* Polarizing Points Card */}
+                  {analysis.polarizingPoints.length > 0 && (
                     <div
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        marginBottom: "8px",
-                        fontWeight: 700,
-                        fontSize: "12px",
-                        color: "#9a3412",
+                        padding: "12px 14px",
+                        background: "#fff7ed",
+                        border: "1px solid #fed7aa",
+                        borderRadius: "10px",
                       }}
                     >
-                      <span>⚡</span> Core Conflicts & Tension
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          marginBottom: "8px",
+                          fontWeight: 700,
+                          fontSize: "12px",
+                          color: "#9a3412",
+                        }}
+                      >
+                        <span>⚡</span> Core Conflicts & Tension
+                      </div>
+                      <ul
+                        style={{
+                          margin: 0,
+                          paddingLeft: "16px",
+                          fontSize: "12px",
+                          color: "#c2410c",
+                          lineHeight: "1.55",
+                        }}
+                      >
+                        {analysis.polarizingPoints.map((pt, idx) => (
+                          <li key={idx} style={{ marginBottom: "4px" }}>
+                            {pt}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul
-                      style={{
-                        margin: 0,
-                        paddingLeft: "16px",
-                        fontSize: "12px",
-                        color: "#c2410c",
-                        lineHeight: "1.55",
-                      }}
-                    >
-                      {analysis.polarizingPoints.map((pt, idx) => (
-                        <li key={idx} style={{ marginBottom: "4px" }}>
-                          {pt}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
 
             {/* Recommended Pivots */}
             {analysis.recommendedPivots.length > 0 && (
@@ -1716,20 +1715,19 @@ function FocusGroupTableView({
                                   background: isHigh
                                     ? "#dcfce7"
                                     : isMid
-                                    ? "#fef3c7"
-                                    : "#fee2e2",
-                                  border: `1px solid ${
-                                    isHigh
+                                      ? "#fef3c7"
+                                      : "#fee2e2",
+                                  border: `1px solid ${isHigh
                                       ? "#bbf7d0"
                                       : isMid
-                                      ? "#fde68a"
-                                      : "#fecaca"
-                                  }`,
+                                        ? "#fde68a"
+                                        : "#fecaca"
+                                    }`,
                                   color: isHigh
                                     ? "#15803d"
                                     : isMid
-                                    ? "#b45309"
-                                    : "#b91c1c",
+                                      ? "#b45309"
+                                      : "#b91c1c",
                                 }}
                               >
                                 {item.score.toFixed(1)} / 10
@@ -1738,8 +1736,8 @@ function FocusGroupTableView({
                                 {isHigh
                                   ? "🟢 High Support"
                                   : isMid
-                                  ? "🟡 Conditional"
-                                  : "🔴 Skeptical"}
+                                    ? "🟡 Conditional"
+                                    : "🔴 Skeptical"}
                               </span>
                             </div>
                           </td>
@@ -2013,10 +2011,10 @@ function ViabilityScorecardView({
     analysis.overallScore ??
     (analysis.evaluations.length > 0
       ? analysis.evaluations.reduce(
-          (acc, e) =>
-            acc + (e.score * 10 * ((e.weightage || 33.3) / 100)),
-          0
-        )
+        (acc, e) =>
+          acc + (e.score * 10 * ((e.weightage || 33.3) / 100)),
+        0
+      )
       : 70);
 
   const isHigh = score >= 75;
@@ -2220,8 +2218,8 @@ function ViabilityScorecardView({
                   {isHigh
                     ? "🟢 High Commercial Viability"
                     : isMid
-                    ? "🟡 Conditional Viability (Pivots Required)"
-                    : "🔴 High Risk / Unviable"}
+                      ? "🟡 Conditional Viability (Pivots Required)"
+                      : "🔴 High Risk / Unviable"}
                 </span>
                 <div style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", textAlign: "right" }}>
                   {analysis.viabilityStatus ||
@@ -2248,8 +2246,8 @@ function ViabilityScorecardView({
                   background: isHigh
                     ? "linear-gradient(90deg, #10b981 0%, #059669 100%)"
                     : isMid
-                    ? "linear-gradient(90deg, #f59e0b 0%, #d97706 100%)"
-                    : "linear-gradient(90deg, #ef4444 0%, #dc2626 100%)",
+                      ? "linear-gradient(90deg, #f59e0b 0%, #d97706 100%)"
+                      : "linear-gradient(90deg, #ef4444 0%, #dc2626 100%)",
                   borderRadius: "4px",
                   transition: "width 0.4s ease",
                 }}
@@ -2479,20 +2477,19 @@ function ViabilityScorecardView({
                                 background: itemHigh
                                   ? "#dcfce7"
                                   : itemMid
-                                  ? "#fef3c7"
-                                  : "#fee2e2",
-                                border: `1px solid ${
-                                  itemHigh
+                                    ? "#fef3c7"
+                                    : "#fee2e2",
+                                border: `1px solid ${itemHigh
                                     ? "#bbf7d0"
                                     : itemMid
-                                    ? "#fde68a"
-                                    : "#fecaca"
-                                }`,
+                                      ? "#fde68a"
+                                      : "#fecaca"
+                                  }`,
                                 color: itemHigh
                                   ? "#15803d"
                                   : itemMid
-                                  ? "#b45309"
-                                  : "#b91c1c",
+                                    ? "#b45309"
+                                    : "#b91c1c",
                               }}
                             >
                               {item.score.toFixed(1)} / 10
