@@ -1,13 +1,18 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { CopilotChat } from "@copilotkit/react-ui";
+import {
+  CopilotChat,
+  AssistantMessage as DefaultAssistantMessage,
+  AssistantMessageProps,
+} from "@copilotkit/react-ui";
 import { useCopilotAction } from "@copilotkit/react-core";
 import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
 import { InteractiveChoiceCard } from "@/components/InteractiveChoiceCard";
 import { PlanApprovalCard } from "@/components/PlanApprovalCard";
 import { DelegationLog, SubagentDelegation } from "@/components/DelegationLog";
 import { TodoProgressBar, TodoItem } from "@/components/TodoProgressBar";
+import { ThinkingActivityCard, CompletedStep } from "@/components/ThinkingActivityCard";
 
 export default function Home() {
   // 1. Reactive Agent Subscription via AG-UI protocol
@@ -308,6 +313,57 @@ export default function Home() {
     });
   }, [delegations, customSteps, isRunning]);
 
+  // 5. Derive live thinking & active delegation state for ephemeral activity view
+  const activeDelegation = useMemo(
+    () => delegations.find((d) => d.status === "running"),
+    [delegations]
+  );
+
+  const currentTodoTitle = useMemo(
+    () => todos.find((t) => t.status === "in_progress")?.title || null,
+    [todos]
+  );
+
+  const completedSteps: CompletedStep[] = useMemo(() => {
+    const list: CompletedStep[] = [];
+    for (const d of delegations) {
+      if (d.status === "completed") {
+        list.push({ title: d.task || `Completed ${d.sub_agent}` });
+      }
+    }
+    for (const t of todos) {
+      if (t.status === "completed" && !list.some((s) => s.title === t.title)) {
+        list.push({ title: t.title });
+      }
+    }
+    return list;
+  }, [delegations, todos]);
+
+  const CustomAssistantMessage = useCallback(
+    (props: AssistantMessageProps) => {
+      const { isLoading, message } = props;
+      const hasContent = Boolean(message?.content);
+
+      // 1. While loading (thinking / running tools / waiting for response):
+      if (isLoading && !hasContent) {
+        return (
+          <ThinkingActivityCard
+            isRunning={isRunning}
+            activeSubagent={activeDelegation?.sub_agent}
+            activeTask={activeDelegation?.task}
+            currentTodoTitle={currentTodoTitle}
+            completedSteps={completedSteps}
+          />
+        );
+      }
+
+      // 2. Once the agent finishes and returns a proper response,
+      // all thinking steps are cleanly invisible (hidden) as requested.
+      return <DefaultAssistantMessage {...props} />;
+    },
+    [isRunning, activeDelegation, currentTodoTitle, completedSteps]
+  );
+
   // 2. Tool: Interactive Choice Card (for clarifying questions with selectable options)
   useCopilotAction({
     name: "ask_user_choice",
@@ -546,6 +602,7 @@ export default function Home() {
           }}
         >
           <CopilotChat
+            AssistantMessage={CustomAssistantMessage}
             labels={{
               title: "Idea Checker Coordinator",
               initial:
