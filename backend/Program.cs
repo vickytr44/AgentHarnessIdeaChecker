@@ -28,7 +28,8 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register Persona Generator, Dynamic Agent Factory, Focus Group Orchestrator, and Viability Evaluator
+// Register Persona Generator, Dynamic Agent Factory, Focus Group Orchestrator, Viability Evaluator, and Subagents Store
+builder.Services.AddSingleton<ISubagentsStore, SubagentsStore>();
 builder.Services.AddSingleton<IDynamicPersonaAgentFactory, DynamicPersonaAgentFactory>();
 builder.Services.AddSingleton<IPersonaAgentService, PersonaAgentService>();
 builder.Services.AddSingleton<IFocusGroupOrchestrator, FocusGroupOrchestrator>();

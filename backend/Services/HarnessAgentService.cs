@@ -8,6 +8,7 @@ public class HarnessAgentService : IHarnessAgentService
 {
     private readonly AIAgent _agent;
     private readonly ILogger<HarnessAgentService> _logger;
+    private readonly ISubagentsStore _subagentsStore;
 
     public AIAgent Agent => _agent;
 
@@ -16,9 +17,12 @@ public class HarnessAgentService : IHarnessAgentService
         IPersonaAgentService personaAgentService,
         IFocusGroupOrchestrator focusGroupOrchestrator,
         IIdeaViabilityEvaluator viabilityEvaluator,
+        ISubagentsStore subagentsStore,
+        ILoggerFactory loggerFactory,
         ILogger<HarnessAgentService> logger)
     {
         _logger = logger;
+        _subagentsStore = subagentsStore;
 
         // Build Google Gemini ChatClient - throws if API key is missing
         IChatClient chatClient = ChatClientFactory.Create(configuration);
@@ -32,7 +36,21 @@ public class HarnessAgentService : IHarnessAgentService
                 CancellationToken cancellationToken) =>
             {
                 logger.LogInformation("Coordinator delegating to PersonaGeneratorAgent for idea: {Idea}", idea);
-                return await personaAgentService.GeneratePersonasAsync(idea, targetMarket, personaCount, cancellationToken);
+                var delId = subagentsStore.AppendRunning(
+                    "persona_generator",
+                    $"Synthesizing target audience personas and priority weights for: '{idea}'");
+
+                try
+                {
+                    var personasResult = await personaAgentService.GeneratePersonasAsync(idea, targetMarket, personaCount, cancellationToken);
+                    subagentsStore.Update(delId, "completed", personasResult);
+                    return personasResult;
+                }
+                catch (Exception ex)
+                {
+                    subagentsStore.Update(delId, "failed", $"Error generating personas: {ex.Message}");
+                    throw;
+                }
             },
             name: "create_idea_personas",
             description: "Invokes the Persona Generator sub-agent to synthesize distinct target audience personas and assign normalized priority weightages summing to 100% for an idea."
@@ -47,21 +65,47 @@ public class HarnessAgentService : IHarnessAgentService
                 CancellationToken cancellationToken) =>
             {
                 logger.LogInformation("Coordinator initiating dynamic Persona Focus Group for idea: {Idea}", idea);
-
-                // 1. Retrieve or generate the declarative personas
-                var personas = await personaAgentService.GetPersonasAsync(idea, targetMarket, cancellationToken);
-
-                // 2. Run multi-agent focus group deliberation
                 var deliberationRounds = Math.Clamp(rounds ?? 3, 2, 3);
-                var (transcript, evaluations) = await focusGroupOrchestrator.DeliberateAsync(
-                    idea,
-                    personas,
-                    deliberationRounds,
-                    cancellationToken);
+                var delId = subagentsStore.AppendRunning(
+                    "focus_group_orchestrator",
+                    $"Moderating {deliberationRounds}-round focus group deliberation between personas on: '{idea}'");
 
-                // 3. Compute weighted viability scorecard and strategic synthesis
-                var report = await viabilityEvaluator.EvaluateAsync(idea, evaluations, transcript, cancellationToken);
-                return report;
+                string? evalDelId = null;
+                try
+                {
+                    // 1. Retrieve or generate declarative personas
+                    var personas = await personaAgentService.GetPersonasAsync(idea, targetMarket, cancellationToken);
+
+                    // 2. Run multi-agent focus group deliberation
+                    var (transcript, evaluations) = await focusGroupOrchestrator.DeliberateAsync(
+                        idea,
+                        personas,
+                        deliberationRounds,
+                        cancellationToken);
+
+                    var deliberationSummary = $"Completed {deliberationRounds} deliberation rounds with {personas.Count} personas.\n" +
+                        string.Join("\n", evaluations.Select(e => $"• {e.PersonaName}: Score {e.Score:F1}/10 - \"{e.Verdict}\""));
+                    subagentsStore.Update(delId, "completed", deliberationSummary);
+
+                    // 3. Compute weighted viability scorecard and strategic synthesis
+                    evalDelId = subagentsStore.AppendRunning(
+                        "viability_evaluator",
+                        $"Calculating mathematically weighted viability index and strategic product pivots for: '{idea}'");
+
+                    var report = await viabilityEvaluator.EvaluateAsync(idea, evaluations, transcript, cancellationToken);
+                    subagentsStore.Update(evalDelId, "completed", report);
+
+                    return report;
+                }
+                catch (Exception ex)
+                {
+                    subagentsStore.Update(delId, "failed", $"Error during focus group deliberation: {ex.Message}");
+                    if (evalDelId != null)
+                    {
+                        subagentsStore.Update(evalDelId, "failed", $"Evaluation aborted: {ex.Message}");
+                    }
+                    throw;
+                }
             },
             name: "run_persona_focus_group",
             description: "Spawns dynamic in-character persona agents to conduct a 2 to 3 round focus group debate (first impressions, cross-talk conflict, final verdict), and produces a mathematically weighted viability scorecard with critical dealbreakers."
@@ -111,7 +155,7 @@ public class HarnessAgentService : IHarnessAgentService
             Always maintain your todo list accurately and present both the focus group discussion highlights and the weighted viability scorecard clearly.
             """;
 
-        _agent = chatClient.AsHarnessAgent(new HarnessAgentOptions
+        var harnessAgent = chatClient.AsHarnessAgent(new HarnessAgentOptions
         {
             Name = "PlanningHarnessAgent",
             Description = "An agent harness capable of planning and tracking todos with idea persona generation and focus group deliberation sub-agents.",
@@ -129,6 +173,8 @@ public class HarnessAgentService : IHarnessAgentService
             LoopAgentOptions = new LoopAgentOptions { MaxIterations = 10 }
         });
 
-        _logger.LogInformation("PlanningHarnessAgent initialized successfully with PersonaGenerator and FocusGroup sub-agents.");
+        _agent = new SubagentsAgent(harnessAgent, subagentsStore, loggerFactory.CreateLogger<SubagentsAgent>());
+
+        _logger.LogInformation("PlanningHarnessAgent wrapped with SubagentsAgent delegation streaming.");
     }
 }

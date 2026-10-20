@@ -3,11 +3,24 @@
 import React from "react";
 import { CopilotChat } from "@copilotkit/react-ui";
 import { useCopilotAction } from "@copilotkit/react-core";
+import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
 import { InteractiveChoiceCard } from "@/components/InteractiveChoiceCard";
 import { PlanApprovalCard } from "@/components/PlanApprovalCard";
+import { DelegationLog, SubagentDelegation } from "@/components/DelegationLog";
 
 export default function Home() {
-  // 1. Tool: Interactive Choice Card (for clarifying questions with selectable options)
+  // 1. Reactive Sub-Agent State Subscription via AG-UI
+  const { agent } = useAgent({
+    updates: [UseAgentUpdate.OnStateChanged, UseAgentUpdate.OnRunStatusChanged],
+  });
+
+  const delegations = ((agent?.state as any)?.delegations as SubagentDelegation[]) || [];
+  const isRunning =
+    (agent as any)?.isRunning ||
+    delegations.some((d) => d.status === "running") ||
+    false;
+
+  // 2. Tool: Interactive Choice Card (for clarifying questions with selectable options)
   useCopilotAction({
     name: "ask_user_choice",
     description:
@@ -70,7 +83,7 @@ export default function Home() {
     },
   });
 
-  // 2. Tool: Plan Approval Card (for one-click approval to proceed to execute mode)
+  // 3. Tool: Plan Approval Card (for one-click approval to proceed to execute mode)
   useCopilotAction({
     name: "request_plan_approval",
     description:
@@ -123,21 +136,31 @@ export default function Home() {
   });
 
   return (
-    <main style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#f8fafc" }}>
+    <main
+      style={{
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        background: "#f1f5f9",
+        overflow: "hidden",
+      }}
+    >
+      {/* Global Header */}
       <header
         style={{
-          padding: "16px 28px",
+          padding: "14px 28px",
           borderBottom: "1px solid #e2e8f0",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           background: "#ffffff",
           boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+          zIndex: 10,
         }}
       >
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <h1 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700, color: "#0f172a" }}>
+            <h1 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 700, color: "#0f172a" }}>
               Idea Checker • Agent Harness
             </h1>
             <span
@@ -153,21 +176,89 @@ export default function Home() {
               Interactive Focus Group
             </span>
           </div>
-          <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "#64748b" }}>
+          <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "#64748b" }}>
             Connected to Microsoft Agent Framework (.NET) on <code>http://localhost:5053/ag-ui</code>
           </p>
         </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span
+            style={{
+              fontSize: "11px",
+              color: "#64748b",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              padding: "4px 10px",
+              borderRadius: "8px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <span
+              style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "#10b981",
+              }}
+            />
+            AG-UI Live State Stream
+          </span>
+        </div>
       </header>
 
-      <div style={{ flex: 1, height: "calc(100vh - 75px)", position: "relative" }}>
-        <CopilotChat
-          labels={{
-            title: "Idea Checker Coordinator",
-            initial:
-              "Welcome! Share any product, startup, or feature idea. I will generate targeted audience personas, moderate a multi-round focus group debate, and compute an objective viability scorecard.",
+      {/* Split-Screen Main Container */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "row",
+          gap: "16px",
+          padding: "16px",
+          overflow: "hidden",
+          height: "calc(100vh - 65px)",
+        }}
+      >
+        {/* Left Panel: Sub-Agent Delegation Log */}
+        <section
+          style={{
+            flex: "1 1 58%",
+            minWidth: "360px",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
           }}
-          className="h-full"
-        />
+        >
+          <DelegationLog delegations={delegations} isRunning={isRunning} />
+        </section>
+
+        {/* Right Panel: CopilotChat */}
+        <section
+          style={{
+            flex: "1 1 42%",
+            minWidth: "340px",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            background: "#ffffff",
+            borderRadius: "16px",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 2px 10px rgba(0, 0, 0, 0.05)",
+            overflow: "hidden",
+          }}
+        >
+          <div style={{ flex: 1, height: "100%", position: "relative" }}>
+            <CopilotChat
+              labels={{
+                title: "Idea Checker Coordinator",
+                initial:
+                  "Welcome! Share any product, startup, or feature idea. I will generate targeted audience personas, moderate a multi-round focus group debate, and compute an objective viability scorecard.",
+              }}
+              className="h-full"
+            />
+          </div>
+        </section>
       </div>
     </main>
   );
