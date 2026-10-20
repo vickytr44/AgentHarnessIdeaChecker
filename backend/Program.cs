@@ -28,7 +28,8 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register Agent Harness Singleton Service and AG-UI Server
+// Register Persona Generator sub-agent and Harness Singleton Service
+builder.Services.AddSingleton<IPersonaAgentService, PersonaAgentService>();
 builder.Services.AddSingleton<IHarnessAgentService, HarnessAgentService>();
 builder.Services.AddKeyedSingleton<AgentSessionStore>("PlanningHarnessAgent", new InMemoryAgentSessionStore());
 builder.Services.AddAGUIServer();

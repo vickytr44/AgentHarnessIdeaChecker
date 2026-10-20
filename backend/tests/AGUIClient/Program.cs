@@ -19,7 +19,7 @@ var session = await agent.CreateSessionAsync();
 
 // Multi-turn test sequence
 string[] testPrompts = args.Length > 1
-    ? [args[1]]
+    ? args.Skip(1).ToArray()
     : [
         "Create a todo item to Review PR for AG-UI integration and show current todos.",
         "Now complete the todo item for Review PR and show the updated list."
