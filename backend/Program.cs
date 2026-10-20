@@ -13,7 +13,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Agent Harness AG-UI Server (Google Gemini)",
         Version = "v1",
-        Description = "ASP.NET Core AG-UI Server backend powering Microsoft Agent Framework Harness with planning and todo tracking."
+        Description = "ASP.NET Core AG-UI Server backend powering Microsoft Agent Framework Harness with planning, persona generation, and multi-agent focus group deliberation."
     });
 });
 
@@ -28,8 +28,11 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Register Persona Generator sub-agent and Harness Singleton Service
+// Register Persona Generator, Dynamic Agent Factory, Focus Group Orchestrator, and Viability Evaluator
+builder.Services.AddSingleton<IDynamicPersonaAgentFactory, DynamicPersonaAgentFactory>();
 builder.Services.AddSingleton<IPersonaAgentService, PersonaAgentService>();
+builder.Services.AddSingleton<IFocusGroupOrchestrator, FocusGroupOrchestrator>();
+builder.Services.AddSingleton<IIdeaViabilityEvaluator, IdeaViabilityEvaluator>();
 builder.Services.AddSingleton<IHarnessAgentService, HarnessAgentService>();
 builder.Services.AddKeyedSingleton<AgentSessionStore>("PlanningHarnessAgent", new InMemoryAgentSessionStore());
 builder.Services.AddAGUIServer();

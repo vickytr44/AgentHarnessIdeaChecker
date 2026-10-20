@@ -1,3 +1,4 @@
+using AgentHarness.Models;
 using Microsoft.Agents.AI;
 
 namespace AgentHarness.Services;
@@ -21,5 +22,13 @@ public interface IPersonaAgentService
         string idea,
         string? targetMarket = null,
         int? personaCount = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates or extracts structured Persona objects for use in dynamic agent instantiation.
+    /// </summary>
+    Task<List<Persona>> GetPersonasAsync(
+        string idea,
+        string? targetMarket = null,
         CancellationToken cancellationToken = default);
 }

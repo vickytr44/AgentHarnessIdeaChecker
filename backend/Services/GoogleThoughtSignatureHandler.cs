@@ -1,18 +1,22 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace AgentHarness.Services;
 
 /// <summary>
 /// Preserves and restores Google Gemini cryptographic thought_signatures across
-/// tool calling turns when using the OpenAI-compatible endpoint.
+/// tool calling turns when using the OpenAI-compatible endpoint, and automatically
+/// handles rate limits (HTTP 429) with intelligent backoff.
 /// </summary>
 public class GoogleThoughtSignatureHandler : DelegatingHandler
 {
     private readonly ConcurrentDictionary<string, JsonNode> _signatures = new();
     private volatile JsonNode? _lastSignature;
+    private const int MaxRetryAttempts = 4;
 
     public GoogleThoughtSignatureHandler(HttpMessageHandler? innerHandler = null)
         : base(innerHandler ?? new HttpClientHandler())
@@ -21,11 +25,13 @@ public class GoogleThoughtSignatureHandler : DelegatingHandler
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        string? requestBody = null;
+
         // 1. Process outgoing request: inject thought_signatures into assistant tool_calls if missing
         if (request.Content != null && request.RequestUri != null &&
             request.RequestUri.AbsolutePath.EndsWith("chat/completions", StringComparison.OrdinalIgnoreCase))
         {
-            var requestBody = await request.Content.ReadAsStringAsync(cancellationToken);
+            requestBody = await request.Content.ReadAsStringAsync(cancellationToken);
             if (!string.IsNullOrWhiteSpace(requestBody) && (_signatures.Count > 0 || _lastSignature != null))
             {
                 try
@@ -67,8 +73,8 @@ public class GoogleThoughtSignatureHandler : DelegatingHandler
 
                         if (modified)
                         {
-                            var updatedJson = rootNode.ToJsonString();
-                            request.Content = new StringContent(updatedJson, Encoding.UTF8, "application/json");
+                            requestBody = rootNode.ToJsonString();
+                            request.Content = new StringContent(requestBody, Encoding.UTF8, "application/json");
                         }
                     }
                 }
@@ -79,8 +85,30 @@ public class GoogleThoughtSignatureHandler : DelegatingHandler
             }
         }
 
-        // 2. Execute underlying HTTP call
-        var response = await base.SendAsync(request, cancellationToken);
+        // 2. Execute underlying HTTP call with automated 429 retry
+        HttpResponseMessage? response = null;
+        for (int attempt = 1; attempt <= MaxRetryAttempts; attempt++)
+        {
+            var reqToSend = attempt == 1 ? request : CloneHttpRequest(request, requestBody);
+            response = await base.SendAsync(reqToSend, cancellationToken);
+
+            if (response.StatusCode != HttpStatusCode.TooManyRequests)
+            {
+                break;
+            }
+
+            // Extract retry delay from Gemini response or use exponential backoff
+            var errorBody = response.Content != null ? await response.Content.ReadAsStringAsync(cancellationToken) : string.Empty;
+            var delaySeconds = ExtractRetryDelaySeconds(errorBody, fallbackSeconds: attempt * 2);
+
+            System.Console.ForegroundColor = ConsoleColor.Yellow;
+            System.Console.WriteLine($"\n[Google Gemini 429 Rate Limit] Attempt {attempt}/{MaxRetryAttempts}. Backing off for {delaySeconds:0.1}s before retry...");
+            System.Console.ResetColor();
+
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+        }
+
+        response ??= new HttpResponseMessage(HttpStatusCode.InternalServerError);
 
         // 3. Process incoming response: capture thought_signatures returned in tool_calls
         if (response.Content != null && request.RequestUri != null &&
@@ -165,6 +193,46 @@ public class GoogleThoughtSignatureHandler : DelegatingHandler
         }
 
         return response;
+    }
+
+    private static HttpRequestMessage CloneHttpRequest(HttpRequestMessage request, string? contentString)
+    {
+        var clone = new HttpRequestMessage(request.Method, request.RequestUri)
+        {
+            Version = request.Version
+        };
+        foreach (var header in request.Headers)
+        {
+            clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+        if (contentString != null)
+        {
+            clone.Content = new StringContent(contentString, Encoding.UTF8, request.Content?.Headers.ContentType?.MediaType ?? "application/json");
+        }
+        return clone;
+    }
+
+    private static double ExtractRetryDelaySeconds(string errorBody, double fallbackSeconds)
+    {
+        try
+        {
+            var match = Regex.Match(errorBody, @"retry in ([0-9]+(?:\.[0-9]+)?)s", RegexOptions.IgnoreCase);
+            if (match.Success && double.TryParse(match.Groups[1].Value, out var sec))
+            {
+                return Math.Clamp(sec + 0.5, 1.0, 15.0);
+            }
+
+            var delayMatch = Regex.Match(errorBody, @"""retryDelay"":\s*""([0-9]+)s""", RegexOptions.IgnoreCase);
+            if (delayMatch.Success && double.TryParse(delayMatch.Groups[1].Value, out var delaySec))
+            {
+                return Math.Clamp(delaySec + 0.5, 1.0, 15.0);
+            }
+        }
+        catch
+        {
+            // Use fallback
+        }
+        return fallbackSeconds;
     }
 
     private void ExtractSignaturesFromElement(JsonElement container, ref string? currentCallId)
