@@ -341,10 +341,40 @@ export default function Home() {
 
   const CustomAssistantMessage = useCallback(
     (props: AssistantMessageProps) => {
-      const { isLoading, message } = props;
-      const hasContent = Boolean(message?.content);
+      const { isLoading, message, isCurrentMessage } = props;
+      const content = message?.content || "";
+      const hasContent = Boolean(content.trim());
+      const subComponent = message?.generativeUI?.() ?? props.subComponent;
 
-      // 1. While loading (thinking / running tools / waiting for response):
+      // 1. If this message contains an interactive card (InteractiveChoiceCard, PlanApprovalCard):
+      if (subComponent) {
+        return (
+          <div style={{ marginBottom: "0.5rem" }}>
+            {subComponent}
+            {/* If the agent is still running / generating after the user's action,
+                display the ThinkingActivityCard underneath the confirmed card instead of 3 dots */}
+            {isLoading && isCurrentMessage !== false && !hasContent && (
+              <div style={{ marginTop: "10px" }}>
+                <ThinkingActivityCard
+                  isRunning={isRunning}
+                  activeSubagent={activeDelegation?.sub_agent}
+                  activeTask={activeDelegation?.task}
+                  currentTodoTitle={currentTodoTitle}
+                  completedSteps={completedSteps}
+                />
+              </div>
+            )}
+            {/* Render message text if arrived */}
+            {hasContent && (
+              <div style={{ marginTop: "10px" }}>
+                <DefaultAssistantMessage {...props} subComponent={undefined} />
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // 2. While loading (thinking / planning / running sub-agents without text yet):
       if (isLoading && !hasContent) {
         return (
           <ThinkingActivityCard
@@ -357,7 +387,7 @@ export default function Home() {
         );
       }
 
-      // 2. Once the agent finishes and returns a proper response,
+      // 3. Once the agent finishes and returns a proper response,
       // all thinking steps are cleanly invisible (hidden) as requested.
       return <DefaultAssistantMessage {...props} />;
     },
@@ -603,6 +633,9 @@ export default function Home() {
         >
           <CopilotChat
             AssistantMessage={CustomAssistantMessage}
+            icons={{
+              activityIcon: null,
+            }}
             labels={{
               title: "Idea Checker Coordinator",
               initial:
