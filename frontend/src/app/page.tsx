@@ -9,54 +9,210 @@ import { PlanApprovalCard } from "@/components/PlanApprovalCard";
 import { DelegationLog, SubagentDelegation } from "@/components/DelegationLog";
 
 export default function Home() {
-  // 1. Reactive Sub-Agent State Subscription via AG-UI
+  // 1. Reactive Agent Subscription via AG-UI protocol
   const { agent } = useAgent({
-    updates: [UseAgentUpdate.OnStateChanged, UseAgentUpdate.OnRunStatusChanged],
+    updates: [
+      UseAgentUpdate.OnMessagesChanged,
+      UseAgentUpdate.OnStateChanged,
+      UseAgentUpdate.OnRunStatusChanged,
+    ],
   });
 
-  // 2. Direct real-time polling synchronization from backend delegations endpoint
-  const [polledDelegations, setPolledDelegations] = useState<SubagentDelegation[]>([]);
+  const [liveDelegations, setLiveDelegations] = useState<SubagentDelegation[]>([]);
 
-  const fetchDelegations = useCallback(async () => {
-    try {
-      const res = await fetch("/api/delegations");
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data?.delegations)) {
-          setPolledDelegations(data.delegations);
+  // 2. Real-time streaming tool-call listener via AG-UI SSE stream (Zero polling/endpoints)
+  useEffect(() => {
+    if (!agent) return;
+
+    const sub = agent.subscribe({
+      onToolCallStartEvent: ({ event }) => {
+        const name = event.toolCallName;
+        let role: SubagentDelegation["sub_agent"] | null = null;
+        let task = "Executing specialist sub-agent...";
+
+        if (name === "create_idea_personas") {
+          role = "persona_generator";
+          task = "Synthesizing target audience personas and priority weights...";
+        } else if (name === "run_persona_focus_group") {
+          role = "focus_group_orchestrator";
+          task = "Moderating multi-round persona focus group deliberation...";
+        }
+
+        if (role) {
+          setLiveDelegations((prev) => {
+            if (prev.some((d) => d.id === event.toolCallId)) return prev;
+            return [
+              ...prev,
+              {
+                id: event.toolCallId,
+                sub_agent: role,
+                task,
+                status: "running",
+                result: "",
+                timestamp: new Date().toISOString(),
+              },
+            ];
+          });
+        }
+      },
+      onToolCallArgsEvent: ({ event, toolCallName, partialToolCallArgs }) => {
+        const idea = (partialToolCallArgs as any)?.idea || (partialToolCallArgs as any)?.task;
+        if (idea && (toolCallName === "create_idea_personas" || toolCallName === "run_persona_focus_group")) {
+          setLiveDelegations((prev) =>
+            prev.map((d) =>
+              d.id === event.toolCallId
+                ? {
+                    ...d,
+                    task:
+                      toolCallName === "create_idea_personas"
+                        ? `Synthesizing personas for: "${idea}"`
+                        : `Moderating focus group debate on: "${idea}"`,
+                  }
+                : d
+            )
+          );
+        }
+      },
+      onToolCallResultEvent: ({ event }) => {
+        const contentStr =
+          typeof event.content === "string"
+            ? event.content
+            : JSON.stringify(event.content, null, 2);
+        const hasScorecard = contentStr && contentStr.includes("Viability Scorecard");
+
+        setLiveDelegations((prev) => {
+          const updated = prev.map((d) => {
+            if (d.id === event.toolCallId) {
+              return {
+                ...d,
+                status: "completed" as const,
+                result: contentStr,
+              };
+            }
+            return d;
+          });
+
+          // Surface the viability evaluator card when the focus group deliberation finishes with the scorecard
+          if (hasScorecard && !updated.some((d) => d.id === `${event.toolCallId}-eval`)) {
+            const parent = updated.find((d) => d.id === event.toolCallId);
+            updated.push({
+              id: `${event.toolCallId}-eval`,
+              sub_agent: "viability_evaluator",
+              task: parent?.task
+                ? parent.task.replace("Moderating focus group debate on", "Computing viability scorecard for")
+                : "Computing mathematically weighted viability scorecard & strategic pivots",
+              status: "completed",
+              result: contentStr,
+              timestamp: new Date().toISOString(),
+            });
+          }
+
+          return updated;
+        });
+      },
+    });
+
+    return () => sub.unsubscribe();
+  }, [agent]);
+
+  // 3. Hydrate previous tool calls from conversation message history
+  useEffect(() => {
+    if (!agent?.messages || agent.messages.length === 0) return;
+
+    const resultMap = new Map<string, string>();
+    for (const msg of agent.messages) {
+      if (msg.role === "tool" && (msg as any).toolCallId) {
+        resultMap.set(
+          (msg as any).toolCallId,
+          typeof (msg as any).content === "string"
+            ? (msg as any).content
+            : JSON.stringify((msg as any).content)
+        );
+      }
+    }
+
+    const historyItems: SubagentDelegation[] = [];
+    for (const msg of agent.messages) {
+      if (msg.role === "assistant" && Array.isArray((msg as any).toolCalls)) {
+        for (const tc of (msg as any).toolCalls) {
+          const name = tc.function?.name;
+          const result = resultMap.get(tc.id);
+          let args: any = {};
+          try {
+            args =
+              typeof tc.function?.arguments === "string"
+                ? JSON.parse(tc.function.arguments)
+                : tc.function?.arguments || {};
+          } catch {
+            // ignore JSON parse errors
+          }
+
+          if (name === "create_idea_personas") {
+            historyItems.push({
+              id: tc.id,
+              sub_agent: "persona_generator",
+              task: args.idea
+                ? `Synthesizing personas for: "${args.idea}"`
+                : "Synthesizing target audience personas",
+              status: result ? "completed" : "running",
+              result: result || "",
+              timestamp: new Date().toISOString(),
+            });
+          } else if (name === "run_persona_focus_group") {
+            const hasScorecard = result && result.includes("Viability Scorecard");
+            historyItems.push({
+              id: tc.id,
+              sub_agent: "focus_group_orchestrator",
+              task: args.idea
+                ? `Moderating focus group debate on: "${args.idea}"`
+                : "Moderating focus group deliberation",
+              status: result ? "completed" : "running",
+              result: result || "",
+              timestamp: new Date().toISOString(),
+            });
+
+            if (hasScorecard) {
+              historyItems.push({
+                id: `${tc.id}-eval`,
+                sub_agent: "viability_evaluator",
+                task: args.idea
+                  ? `Computing viability scorecard for: "${args.idea}"`
+                  : "Computing weighted viability scorecard & strategic pivots",
+                status: "completed",
+                result: result,
+                timestamp: new Date().toISOString(),
+              });
+            }
+          }
         }
       }
-    } catch {
-      // Ignore network polling exceptions
     }
-  }, []);
 
-  useEffect(() => {
-    fetchDelegations();
-    const interval = setInterval(fetchDelegations, 1000);
-    return () => clearInterval(interval);
-  }, [fetchDelegations]);
-
-  const handleClearDelegations = useCallback(async () => {
-    try {
-      await fetch("/api/delegations", { method: "DELETE" });
-      setPolledDelegations([]);
-    } catch {
-      // Ignore
+    if (historyItems.length > 0) {
+      setLiveDelegations((prev) => {
+        const merged = [...prev];
+        for (const item of historyItems) {
+          const idx = merged.findIndex((m) => m.id === item.id);
+          if (idx >= 0) {
+            merged[idx] = { ...merged[idx], ...item };
+          } else {
+            merged.push(item);
+          }
+        }
+        return merged;
+      });
     }
-  }, []);
+  }, [agent?.messages]);
 
-  const agentDelegations = ((agent?.state as any)?.delegations as SubagentDelegation[]) || [];
-  
-  // Prefer whichever source has delegations or has more records
-  const delegations = polledDelegations.length >= agentDelegations.length
-    ? polledDelegations
-    : agentDelegations;
-
+  const delegations = liveDelegations;
   const isRunning =
     (agent as any)?.isRunning ||
     delegations.some((d) => d.status === "running") ||
     false;
+
+  const handleClearDelegations = useCallback(() => {
+    setLiveDelegations([]);
+  }, []);
 
   // 2. Tool: Interactive Choice Card (for clarifying questions with selectable options)
   useCopilotAction({

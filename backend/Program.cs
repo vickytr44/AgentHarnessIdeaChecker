@@ -53,19 +53,6 @@ app.UseCors();
 var harnessAgentService = app.Services.GetRequiredService<IHarnessAgentService>();
 app.MapAGUIServer("/ag-ui", harnessAgentService.Agent);
 
-// Subagent delegations endpoint for live UI updates
-app.MapGet("/api/subagents/delegations", (ISubagentsStore store) =>
-{
-    var snapshot = store.BuildSnapshot(null);
-    return Results.Ok(snapshot);
-});
-
-app.MapDelete("/api/subagents/delegations", (ISubagentsStore store) =>
-{
-    store.Clear();
-    return Results.Ok(new { message = "Delegations cleared" });
-});
-
 // Root landing endpoint
 app.MapGet("/", () => Results.Ok(new
 {
@@ -75,7 +62,6 @@ app.MapGet("/", () => Results.Ok(new
     endpoints = new
     {
         agui = "POST /ag-ui",
-        delegations = "GET /api/subagents/delegations",
         swagger = "/swagger"
     }
 }));

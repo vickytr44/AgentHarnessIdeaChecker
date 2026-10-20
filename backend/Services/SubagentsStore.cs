@@ -11,7 +11,6 @@ public interface ISubagentsStore
     void Update(string id, string status, string result);
     bool TakeDirty(AgentSession? thread);
     SubagentsSnapshot BuildSnapshot(AgentSession? thread);
-    void Clear();
 }
 
 public sealed class SubagentsStore : ISubagentsStore
@@ -104,14 +103,6 @@ public sealed class SubagentsStore : ISubagentsStore
             }
 
             return new SubagentsSnapshot(slot.Delegations.ToArray());
-        }
-    }
-
-    public void Clear()
-    {
-        lock (_lock)
-        {
-            _slots.Clear();
         }
     }
 
