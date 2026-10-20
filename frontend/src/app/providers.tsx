@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { CopilotKit } from "@copilotkit/react-core";
+import { CopilotKit } from "@copilotkit/react-core/v2";
+import "@copilotkit/react-core/v2/styles.css";
 import "@copilotkit/react-ui/styles.css";
 
 export function Providers({ children }: { children: React.ReactNode }) {

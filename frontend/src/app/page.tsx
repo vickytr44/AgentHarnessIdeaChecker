@@ -6,8 +6,8 @@ import {
   AssistantMessage as DefaultAssistantMessage,
   AssistantMessageProps,
 } from "@copilotkit/react-ui";
-import { useCopilotAction } from "@copilotkit/react-core";
-import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
+import { useAgent, UseAgentUpdate, useHumanInTheLoop } from "@copilotkit/react-core/v2";
+import { z } from "zod";
 import { InteractiveChoiceCard } from "@/components/InteractiveChoiceCard";
 import { PlanApprovalCard } from "@/components/PlanApprovalCard";
 import { DelegationLog, SubagentDelegation } from "@/components/DelegationLog";
@@ -395,48 +395,26 @@ export default function Home() {
   );
 
   // 2. Tool: Interactive Choice Card (for clarifying questions with selectable options)
-  useCopilotAction({
+  useHumanInTheLoop({
     name: "ask_user_choice",
     description:
       "Prompts the user with interactive, clickable options when asking clarifying questions, selecting target markets, or making decisions.",
-    parameters: [
-      {
-        name: "question",
-        type: "string",
-        description: "The question or decision to ask the user",
-        required: true,
-      },
-      {
-        name: "description",
-        type: "string",
-        description: "Additional context or guidance for the decision",
-        required: false,
-      },
-      {
-        name: "category",
-        type: "string",
-        description: "Category badge (e.g. 'Target Market', 'User Segment', 'Design Choice')",
-        required: false,
-      },
-      {
-        name: "options",
-        type: "object[]",
-        description: "List of candidate options",
-        required: true,
-        attributes: [
-          { name: "id", type: "string", description: "Option ID" },
-          { name: "label", type: "string", description: "Option label" },
-          { name: "description", type: "string", description: "Optional details" },
-        ],
-      },
-      {
-        name: "allowMultiple",
-        type: "boolean",
-        description: "Whether multiple selections are allowed",
-        required: false,
-      },
-    ],
-    renderAndWaitForResponse: ({ args, status, respond }) => {
+    parameters: z.object({
+      question: z.string().describe("The question or decision to ask the user"),
+      description: z.string().optional().describe("Additional context or guidance for the decision"),
+      category: z.string().optional().describe("Category badge (e.g. 'Target Market', 'User Segment', 'Design Choice')"),
+      options: z
+        .array(
+          z.object({
+            id: z.string().describe("Option ID"),
+            label: z.string().describe("Option label"),
+            description: z.string().optional().describe("Optional details"),
+          })
+        )
+        .describe("List of candidate options"),
+      allowMultiple: z.boolean().optional().describe("Whether multiple selections are allowed"),
+    }),
+    render: ({ args, status, respond }) => {
       return (
         <InteractiveChoiceCard
           question={args.question || "Please select an option:"}
@@ -458,31 +436,16 @@ export default function Home() {
   });
 
   // 3. Tool: Plan Approval Card (for one-click approval to proceed to execute mode)
-  useCopilotAction({
+  useHumanInTheLoop({
     name: "request_plan_approval",
     description:
       "Presents the evaluation plan to the user with an interactive 'Approve & Execute' button.",
-    parameters: [
-      {
-        name: "planTitle",
-        type: "string",
-        description: "Title of the proposed plan",
-        required: false,
-      },
-      {
-        name: "planSummary",
-        type: "string",
-        description: "Brief overview of what will be evaluated",
-        required: false,
-      },
-      {
-        name: "steps",
-        type: "string[]",
-        description: "List of planned todo steps",
-        required: false,
-      },
-    ],
-    renderAndWaitForResponse: ({ args, status, respond }) => {
+    parameters: z.object({
+      planTitle: z.string().optional().describe("Title of the proposed plan"),
+      planSummary: z.string().optional().describe("Brief overview of what will be evaluated"),
+      steps: z.array(z.string()).optional().describe("List of planned todo steps"),
+    }),
+    render: ({ args, status, respond }) => {
       return (
         <PlanApprovalCard
           planTitle={args.planTitle}
