@@ -1,4 +1,4 @@
-# start-all.ps1 - Start both Backend (.NET) and Frontend (Next.js)
+# run-all.ps1 - Start both Backend (.NET) and Frontend (Next.js)
 
 param(
     [switch]$NewWindow = $false
