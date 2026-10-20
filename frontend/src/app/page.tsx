@@ -156,6 +156,7 @@ export default function Home() {
           background: "#ffffff",
           boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
           zIndex: 10,
+          flexShrink: 0,
         }}
       >
         <div>
@@ -212,22 +213,24 @@ export default function Home() {
       <div
         style={{
           flex: 1,
+          minHeight: 0,
           display: "flex",
           flexDirection: "row",
           gap: "16px",
           padding: "16px",
           overflow: "hidden",
-          height: "calc(100vh - 65px)",
         }}
       >
         {/* Left Panel: Sub-Agent Delegation Log */}
         <section
           style={{
-            flex: "1 1 58%",
+            flex: "1 1 56%",
             minWidth: "360px",
             height: "100%",
+            minHeight: 0,
             display: "flex",
             flexDirection: "column",
+            overflow: "hidden",
           }}
         >
           <DelegationLog delegations={delegations} isRunning={isRunning} />
@@ -236,9 +239,10 @@ export default function Home() {
         {/* Right Panel: CopilotChat */}
         <section
           style={{
-            flex: "1 1 42%",
+            flex: "1 1 44%",
             minWidth: "340px",
             height: "100%",
+            minHeight: 0,
             display: "flex",
             flexDirection: "column",
             background: "#ffffff",
@@ -246,18 +250,17 @@ export default function Home() {
             border: "1px solid #e2e8f0",
             boxShadow: "0 2px 10px rgba(0, 0, 0, 0.05)",
             overflow: "hidden",
+            position: "relative",
           }}
         >
-          <div style={{ flex: 1, height: "100%", position: "relative" }}>
-            <CopilotChat
-              labels={{
-                title: "Idea Checker Coordinator",
-                initial:
-                  "Welcome! Share any product, startup, or feature idea. I will generate targeted audience personas, moderate a multi-round focus group debate, and compute an objective viability scorecard.",
-              }}
-              className="h-full"
-            />
-          </div>
+          <CopilotChat
+            labels={{
+              title: "Idea Checker Coordinator",
+              initial:
+                "Welcome! Share any product, startup, or feature idea. I will generate targeted audience personas, moderate a multi-round focus group debate, and compute an objective viability scorecard.",
+            }}
+            className="h-full"
+          />
         </section>
       </div>
     </main>
