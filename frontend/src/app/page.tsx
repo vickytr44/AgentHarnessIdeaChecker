@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { CopilotChat } from "@copilotkit/react-ui";
 import { useCopilotAction } from "@copilotkit/react-core";
 import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
@@ -14,7 +14,45 @@ export default function Home() {
     updates: [UseAgentUpdate.OnStateChanged, UseAgentUpdate.OnRunStatusChanged],
   });
 
-  const delegations = ((agent?.state as any)?.delegations as SubagentDelegation[]) || [];
+  // 2. Direct real-time polling synchronization from backend delegations endpoint
+  const [polledDelegations, setPolledDelegations] = useState<SubagentDelegation[]>([]);
+
+  const fetchDelegations = useCallback(async () => {
+    try {
+      const res = await fetch("/api/delegations");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data?.delegations)) {
+          setPolledDelegations(data.delegations);
+        }
+      }
+    } catch {
+      // Ignore network polling exceptions
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDelegations();
+    const interval = setInterval(fetchDelegations, 1000);
+    return () => clearInterval(interval);
+  }, [fetchDelegations]);
+
+  const handleClearDelegations = useCallback(async () => {
+    try {
+      await fetch("/api/delegations", { method: "DELETE" });
+      setPolledDelegations([]);
+    } catch {
+      // Ignore
+    }
+  }, []);
+
+  const agentDelegations = ((agent?.state as any)?.delegations as SubagentDelegation[]) || [];
+  
+  // Prefer whichever source has delegations or has more records
+  const delegations = polledDelegations.length >= agentDelegations.length
+    ? polledDelegations
+    : agentDelegations;
+
   const isRunning =
     (agent as any)?.isRunning ||
     delegations.some((d) => d.status === "running") ||
@@ -233,7 +271,11 @@ export default function Home() {
             overflow: "hidden",
           }}
         >
-          <DelegationLog delegations={delegations} isRunning={isRunning} />
+          <DelegationLog
+            delegations={delegations}
+            isRunning={isRunning}
+            onClear={handleClearDelegations}
+          />
         </section>
 
         {/* Right Panel: CopilotChat */}

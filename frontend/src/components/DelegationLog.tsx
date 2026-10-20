@@ -16,6 +16,7 @@ export interface SubagentDelegation {
 export interface DelegationLogProps {
   delegations: SubagentDelegation[];
   isRunning?: boolean;
+  onClear?: () => void;
 }
 
 interface SubAgentMeta {
@@ -76,7 +77,11 @@ const INDICATOR_ROLES: SubAgentRole[] = [
   "viability_evaluator",
 ];
 
-export function DelegationLog({ delegations = [], isRunning = false }: DelegationLogProps) {
+export function DelegationLog({
+  delegations = [],
+  isRunning = false,
+  onClear,
+}: DelegationLogProps) {
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
   const calledRoles = new Set<string>(delegations.map((d) => d.sub_agent));
@@ -151,20 +156,51 @@ export function DelegationLog({ delegations = [], isRunning = false }: Delegatio
           )}
         </div>
 
-        <span
-          data-testid="delegation-count"
-          style={{
-            fontFamily: "monospace",
-            fontSize: "12px",
-            color: "#64748b",
-            background: "#f1f5f9",
-            padding: "3px 10px",
-            borderRadius: "12px",
-            fontWeight: 600,
-          }}
-        >
-          {delegations.length} {delegations.length === 1 ? "call" : "calls"}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {onClear && delegations.length > 0 && !isRunning && (
+            <button
+              onClick={onClear}
+              title="Clear delegation log"
+              style={{
+                background: "transparent",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                padding: "3px 10px",
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "#64748b",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#cbd5e1";
+                e.currentTarget.style.color = "#334155";
+                e.currentTarget.style.background = "#f1f5f9";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#e2e8f0";
+                e.currentTarget.style.color = "#64748b";
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              Clear
+            </button>
+          )}
+          <span
+            data-testid="delegation-count"
+            style={{
+              fontFamily: "monospace",
+              fontSize: "12px",
+              color: "#64748b",
+              background: "#f1f5f9",
+              padding: "3px 10px",
+              borderRadius: "12px",
+              fontWeight: 600,
+            }}
+          >
+            {delegations.length} {delegations.length === 1 ? "call" : "calls"}
+          </span>
+        </div>
       </div>
 
       {/* Sub-Agent Indicator Chips Bar */}

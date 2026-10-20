@@ -11,6 +11,7 @@ public interface ISubagentsStore
     void Update(string id, string status, string result);
     bool TakeDirty(AgentSession? thread);
     SubagentsSnapshot BuildSnapshot(AgentSession? thread);
+    void Clear();
 }
 
 public sealed class SubagentsStore : ISubagentsStore
@@ -106,24 +107,27 @@ public sealed class SubagentsStore : ISubagentsStore
         }
     }
 
+    public void Clear()
+    {
+        lock (_lock)
+        {
+            _slots.Clear();
+        }
+    }
+
     private ThreadSlot? ResolveSlotForRead(AgentSession? thread)
     {
         if (thread is not null &&
             _slots.TryGetValue(thread, out var threadSlot) &&
-            (threadSlot.Delegations.Count > 0 || threadSlot.DirtyVersion > 0))
+            threadSlot.Delegations.Count > 0)
         {
             return threadSlot;
         }
 
         if (_slots.TryGetValue(_globalSlot, out var globalSlot) &&
-            (globalSlot.Delegations.Count > 0 || globalSlot.DirtyVersion > 0))
+            globalSlot.Delegations.Count > 0)
         {
             return globalSlot;
-        }
-
-        if (thread is not null && _slots.TryGetValue(thread, out threadSlot))
-        {
-            return threadSlot;
         }
 
         return _slots.TryGetValue(_globalSlot, out globalSlot) ? globalSlot : null;
@@ -131,18 +135,13 @@ public sealed class SubagentsStore : ISubagentsStore
 
     private IEnumerable<ThreadSlot> WriteTargets()
     {
-        var key = _activeThreadKey.Value ?? _globalSlot;
-        yield return GetOrCreateSlot(key);
+        // Always write to global slot so API callers and readers without thread context can see all delegations
+        yield return GetOrCreateSlot(_globalSlot);
 
-        if (ReferenceEquals(key, _globalSlot))
+        var key = _activeThreadKey.Value;
+        if (key is not null && !ReferenceEquals(key, _globalSlot))
         {
-            foreach (var kvp in _slots)
-            {
-                if (!ReferenceEquals(kvp.Key, _globalSlot))
-                {
-                    yield return kvp.Value;
-                }
-            }
+            yield return GetOrCreateSlot(key);
         }
     }
 
