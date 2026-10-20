@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { CopilotChat } from "@copilotkit/react-ui";
 import { useCopilotAction } from "@copilotkit/react-core";
 import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
 import { InteractiveChoiceCard } from "@/components/InteractiveChoiceCard";
 import { PlanApprovalCard } from "@/components/PlanApprovalCard";
 import { DelegationLog, SubagentDelegation } from "@/components/DelegationLog";
+import { TodoProgressBar, TodoItem } from "@/components/TodoProgressBar";
 
 export default function Home() {
   // 1. Reactive Agent Subscription via AG-UI protocol
@@ -19,6 +20,7 @@ export default function Home() {
   });
 
   const [liveDelegations, setLiveDelegations] = useState<SubagentDelegation[]>([]);
+  const [customSteps, setCustomSteps] = useState<string[]>([]);
 
   // 2. Real-time streaming tool-call listener via AG-UI SSE stream (Zero polling/endpoints)
   useEffect(() => {
@@ -71,6 +73,13 @@ export default function Home() {
                 : d
             )
           );
+        }
+
+        if (toolCallName === "request_plan_approval") {
+          const steps = (partialToolCallArgs as any)?.steps;
+          if (Array.isArray(steps) && steps.length > 0) {
+            setCustomSteps(steps);
+          }
         }
       },
       onToolCallResultEvent: ({ event }) => {
@@ -183,6 +192,20 @@ export default function Home() {
                 timestamp: new Date().toISOString(),
               });
             }
+          } else if (name === "request_plan_approval") {
+            if (Array.isArray(args.steps) && args.steps.length > 0) {
+              setCustomSteps(args.steps);
+            }
+          } else if (name === "todos_add") {
+            const items = args.todos || args.items;
+            if (Array.isArray(items) && items.length > 0) {
+              const titles = items.map((t: any) =>
+                typeof t === "string" ? t : t.description || t.title || t.text
+              );
+              if (titles.filter(Boolean).length > 0) {
+                setCustomSteps(titles.filter(Boolean));
+              }
+            }
           }
         }
       }
@@ -212,7 +235,78 @@ export default function Home() {
 
   const handleClearDelegations = useCallback(() => {
     setLiveDelegations([]);
+    setCustomSteps([]);
   }, []);
+
+  // 4. Derive live plan todos dynamically
+  const todos: TodoItem[] = useMemo(() => {
+    if (delegations.length === 0 && customSteps.length === 0) {
+      return [];
+    }
+
+    const defaultTitles = [
+      "Analyze core concept and market context",
+      "Generate target audience personas & weightages",
+      "Conduct multi-agent focus group deliberation",
+      "Synthesize weighted viability score & strategic pivots",
+    ];
+
+    const stepTitles =
+      customSteps.length >= 3 ? customSteps : defaultTitles;
+
+    const personaDel = delegations.find((d) => d.sub_agent === "persona_generator");
+    const focusDel = delegations.find((d) => d.sub_agent === "focus_group_orchestrator");
+    const viabilityDel = delegations.find((d) => d.sub_agent === "viability_evaluator");
+
+    return stepTitles.map((title, idx) => {
+      let status: TodoItem["status"] = "pending";
+      let subtitle = "";
+
+      if (idx === 0) {
+        if (personaDel) {
+          status = "completed";
+          subtitle = "Context verified";
+        } else if (isRunning) {
+          status = "in_progress";
+          subtitle = "Structuring evaluation plan...";
+        }
+      } else if (idx === 1) {
+        if (personaDel?.status === "completed") {
+          status = "completed";
+          subtitle = "Personas synthesized";
+        } else if (personaDel?.status === "running") {
+          status = "in_progress";
+          subtitle = "Generating audience archetypes...";
+        }
+      } else if (idx === 2) {
+        if (focusDel?.status === "completed") {
+          status = "completed";
+          subtitle = "Deliberation concluded";
+        } else if (focusDel?.status === "running") {
+          status = "in_progress";
+          subtitle = "Moderating multi-agent debate...";
+        }
+      } else if (idx === 3) {
+        if (viabilityDel?.status === "completed") {
+          status = "completed";
+          subtitle = "Viability index calculated";
+        } else if (focusDel?.status === "completed" || focusDel?.status === "running") {
+          status = focusDel?.status === "completed" ? "in_progress" : "pending";
+          subtitle =
+            focusDel?.status === "completed"
+              ? "Synthesizing final scorecard..."
+              : "Awaiting deliberation";
+        }
+      }
+
+      return {
+        id: `step-${idx + 1}`,
+        title,
+        subtitle,
+        status,
+      };
+    });
+  }, [delegations, customSteps, isRunning]);
 
   // 2. Tool: Interactive Choice Card (for clarifying questions with selectable options)
   useCopilotAction({
@@ -459,6 +553,9 @@ export default function Home() {
             }}
             className="h-full"
           />
+
+          {/* Docked Todo Progress Bar anchored above input */}
+          <TodoProgressBar todos={todos} isRunning={isRunning} />
         </section>
       </div>
     </main>

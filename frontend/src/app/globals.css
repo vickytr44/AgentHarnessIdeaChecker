@@ -69,6 +69,7 @@ a {
   min-height: min-content !important;
   display: flex !important;
   flex-direction: column !important;
+  padding-bottom: 48px !important;
 }
 
 .copilotKitChat .copilotKitInput {
