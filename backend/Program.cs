@@ -38,6 +38,16 @@ builder.Services.AddSingleton<IHarnessAgentService, HarnessAgentService>();
 builder.Services.AddKeyedSingleton<AgentSessionStore>("PlanningHarnessAgent", new InMemoryAgentSessionStore());
 builder.Services.AddAGUIServer();
 
+// Omit null properties in AG-UI SSE JSON output so fields match strict schemas
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+});
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    options.SerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
