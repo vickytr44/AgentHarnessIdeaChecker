@@ -53,10 +53,10 @@ const CustomAssistantMessage: typeof CopilotChatAssistantMessage = Object.assign
     }
 
     // 2. While loading (thinking / planning / running sub-agents without text yet):
-    if (activeRunning && isLatest && !hasContent) {
+    if (isLatest && !hasContent) {
       return (
         <ThinkingActivityCard
-          isRunning={isRunning}
+          isRunning={activeRunning || true}
           activeSubagent={activeDelegation?.sub_agent}
           activeTask={activeDelegation?.task}
           currentTodoTitle={currentTodoTitle}
@@ -400,20 +400,17 @@ export default function Home() {
   }, [delegations, todos]);
 
   // CopilotKit v2 Message list reshaping:
-  // Drops intermediate empty assistant messages from past tool calls so they never take up virtualized rows or show empty toolbars
-  const transformMessages = useCallback(
-    (messages: any[]) => {
-      return messages.filter((msg, idx) => {
-        if (msg.role !== "assistant") return true;
-        const hasText = !!(msg.content && msg.content.trim().length > 0);
-        const hasCard = typeof (msg as any)?.generativeUI === "function";
-        const isLast = idx === messages.length - 1;
-        // Retain assistant message if it contains text, has an interactive UI card, or is currently executing as the latest turn
-        return hasText || hasCard || (isRunning && isLast);
-      });
-    },
-    [isRunning]
-  );
+  // Drops intermediate empty assistant messages from past tool calls while always keeping the active turn
+  const transformMessages = useCallback((messages: any[]) => {
+    return messages.filter((msg, idx) => {
+      if (msg.role !== "assistant") return true;
+      const hasText = !!(msg.content && msg.content.trim().length > 0);
+      const hasCard = typeof (msg as any)?.generativeUI === "function";
+      const isLast = idx === messages.length - 1;
+      // Retain assistant message if it contains text, has an interactive UI card, or is the active latest turn
+      return hasText || hasCard || isLast;
+    });
+  }, []);
 
   // 2. Tool: Interactive Choice Card (for clarifying questions with selectable options)
   useHumanInTheLoop({
