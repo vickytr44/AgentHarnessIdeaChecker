@@ -95,3 +95,12 @@ desktop.ini
 .idea/
 *.swp
 *~
+
+# ------------------------------------------
+# Testing, Tooling & Local Proof Artifacts
+# ------------------------------------------
+.copilotkit/
+.playwright-mcp/
+scratch*
+*.log
+
