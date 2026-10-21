@@ -8,6 +8,7 @@ import {
   useAgent,
   UseAgentUpdate,
   useHumanInTheLoop,
+  useRenderToolCall,
 } from "@copilotkit/react-core/v2";
 import { z } from "zod";
 import { InteractiveChoiceCard } from "@/components/InteractiveChoiceCard";
@@ -32,25 +33,25 @@ const CustomAssistantMessage: typeof CopilotChatAssistantMessage = Object.assign
   function CustomAssistantMessage(props: CopilotChatAssistantMessageProps) {
     const { isRunning, activeDelegation, currentTodoTitle, completedSteps } =
       React.useContext(AgentRunContext);
-    const { message, isRunning: msgRunning, isLatest } = props;
+    const renderToolCall = useRenderToolCall();
+    const { message, messages, isRunning: msgRunning, isLatest } = props;
     const content = typeof message?.content === "string" ? message.content : "";
     const hasContent = Boolean(content.trim());
     const activeRunning = isRunning || msgRunning;
 
-    // Check if this message contains a human-in-the-loop interactive tool call
-    const hasHitlTool = Boolean(
-      (message as any)?.toolCalls?.some(
-        (tc: any) =>
-          tc.function?.name === "ask_user_choice" ||
-          tc.function?.name === "request_plan_approval" ||
-          tc.name === "ask_user_choice" ||
-          tc.name === "request_plan_approval"
-      )
+    // Dynamically check if any tool call has a registered UI/HITL renderer
+    const hasRenderableTool = Boolean(
+      (message as any)?.toolCalls?.some((tc: any) => {
+        const toolMsg = (messages ?? []).find(
+          (m: any) => m.role === "tool" && m.toolCallId === tc.id
+        ) as any;
+        return renderToolCall({ toolCall: tc, toolMessage: toolMsg }) !== null;
+      })
     );
 
-    // 1. If this message contains an interactive HITL card (InteractiveChoiceCard, PlanApprovalCard)
-    // or has text content, delegate directly to CopilotChatAssistantMessage so CopilotKit renders the tool calls:
-    if (hasHitlTool || hasContent) {
+    // 1. If this message contains an interactive HITL card or has text content,
+    // delegate directly to CopilotChatAssistantMessage so CopilotKit renders the tool calls:
+    if (hasRenderableTool || hasContent) {
       return <CopilotChatAssistantMessage {...props} />;
     }
 
@@ -397,23 +398,15 @@ export default function Home() {
   }, [delegations, todos]);
 
   // CopilotKit v2 Message list reshaping:
-  // Drops intermediate empty assistant messages from past tool calls while always keeping HITL cards and active turn
+  // Drops intermediate empty assistant messages from past tool calls while retaining tool calls and active turn
   const transformMessages = useCallback((messages: any[]) => {
     return messages.filter((msg, idx) => {
       if (msg.role !== "assistant") return true;
       const hasText = !!(msg.content && msg.content.trim().length > 0);
-      const hasHitl = Boolean(
-        (msg as any).toolCalls?.some(
-          (tc: any) =>
-            tc.function?.name === "ask_user_choice" ||
-            tc.function?.name === "request_plan_approval" ||
-            tc.name === "ask_user_choice" ||
-            tc.name === "request_plan_approval"
-        )
-      );
+      const hasToolCalls = Boolean((msg as any).toolCalls && (msg as any).toolCalls.length > 0);
       const isLast = idx === messages.length - 1;
-      // Retain assistant message if it contains text, has an interactive HITL card, or is the active latest turn
-      return hasText || hasHitl || isLast;
+      // Retain assistant message if it contains text, has tool calls, or is the active latest turn
+      return hasText || hasToolCalls || isLast;
     });
   }, []);
 
