@@ -16,6 +16,67 @@ import { DelegationLog, SubagentDelegation } from "@/components/DelegationLog";
 import { TodoProgressBar, TodoItem } from "@/components/TodoProgressBar";
 import { ThinkingActivityCard, CompletedStep } from "@/components/ThinkingActivityCard";
 
+interface AgentRunState {
+  isRunning: boolean;
+  activeDelegation?: SubagentDelegation;
+  currentTodoTitle?: string | null;
+  completedSteps: CompletedStep[];
+}
+
+const AgentRunContext = React.createContext<AgentRunState>({
+  isRunning: false,
+  completedSteps: [],
+});
+
+const CustomAssistantMessage: typeof CopilotChatAssistantMessage = Object.assign(
+  function CustomAssistantMessage(props: CopilotChatAssistantMessageProps) {
+    const { isRunning, activeDelegation, currentTodoTitle, completedSteps } =
+      React.useContext(AgentRunContext);
+    const { message, isRunning: msgRunning, isLatest } = props;
+    const content = typeof message?.content === "string" ? message.content : "";
+    const hasContent = Boolean(content.trim());
+    const subComponent = (message as any)?.generativeUI?.();
+    const activeRunning = isRunning || msgRunning;
+
+    // 1. If this message contains an interactive card (InteractiveChoiceCard, PlanApprovalCard):
+    if (subComponent) {
+      return (
+        <div style={{ marginBottom: "0.5rem" }}>
+          {subComponent}
+          {hasContent && (
+            <div style={{ marginTop: "10px" }}>
+              <CopilotChatAssistantMessage {...props} />
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 2. While loading (thinking / planning / running sub-agents without text yet):
+    if (activeRunning && isLatest && !hasContent) {
+      return (
+        <ThinkingActivityCard
+          isRunning={isRunning}
+          activeSubagent={activeDelegation?.sub_agent}
+          activeTask={activeDelegation?.task}
+          currentTodoTitle={currentTodoTitle}
+          completedSteps={completedSteps}
+        />
+      );
+    }
+
+    // 3. For any message that has actual text content, render standard assistant message:
+    if (hasContent) {
+      return <CopilotChatAssistantMessage {...props} />;
+    }
+
+    // 4. Completed intermediate tool calls with no content and no interactive card:
+    // Return null so they do not render empty toolbars ([Copy] [Wrench]) or leave blank rows.
+    return null;
+  },
+  CopilotChatAssistantMessage
+);
+
 export default function Home() {
   // 1. Reactive Agent Subscription via AG-UI protocol
   const { agent } = useAgent({
@@ -67,19 +128,16 @@ export default function Home() {
       onToolCallArgsEvent: ({ event, toolCallName, partialToolCallArgs }) => {
         const idea = (partialToolCallArgs as any)?.idea || (partialToolCallArgs as any)?.task;
         if (idea && (toolCallName === "create_idea_personas" || toolCallName === "run_persona_focus_group")) {
-          setLiveDelegations((prev) =>
-            prev.map((d) =>
-              d.id === event.toolCallId
-                ? {
-                    ...d,
-                    task:
-                      toolCallName === "create_idea_personas"
-                        ? `Synthesizing personas for: "${idea}"`
-                        : `Moderating focus group debate on: "${idea}"`,
-                  }
-                : d
-            )
-          );
+          setLiveDelegations((prev) => {
+            const target = prev.find((d) => d.id === event.toolCallId);
+            if (!target) return prev;
+            const newTask =
+              toolCallName === "create_idea_personas"
+                ? `Synthesizing personas for: "${idea}"`
+                : `Moderating focus group debate on: "${idea}"`;
+            if (target.task === newTask) return prev;
+            return prev.map((d) => (d.id === event.toolCallId ? { ...d, task: newTask } : d));
+          });
         }
 
         if (toolCallName === "request_plan_approval") {
@@ -341,63 +399,21 @@ export default function Home() {
     return list;
   }, [delegations, todos]);
 
-  const CustomAssistantMessage = useMemo(() => {
-    return Object.assign(
-      (props: CopilotChatAssistantMessageProps) => {
-        const { message, isRunning: msgRunning, isLatest } = props;
-        const content = typeof message?.content === "string" ? message.content : "";
-        const hasContent = Boolean(content.trim());
-        const subComponent = (message as any)?.generativeUI?.();
-        const activeRunning = isRunning || msgRunning;
-
-        // 1. If this message contains an interactive card (InteractiveChoiceCard, PlanApprovalCard):
-        if (subComponent) {
-          return (
-            <div style={{ marginBottom: "0.5rem" }}>
-              {subComponent}
-              {/* If the agent is still running / generating after user action,
-                  display the ThinkingActivityCard underneath the confirmed card instead of 3 dots */}
-              {activeRunning && isLatest && !hasContent && (
-                <div style={{ marginTop: "10px" }}>
-                  <ThinkingActivityCard
-                    isRunning={isRunning}
-                    activeSubagent={activeDelegation?.sub_agent}
-                    activeTask={activeDelegation?.task}
-                    currentTodoTitle={currentTodoTitle}
-                    completedSteps={completedSteps}
-                  />
-                </div>
-              )}
-              {/* Render message text if arrived */}
-              {hasContent && (
-                <div style={{ marginTop: "10px" }}>
-                  <CopilotChatAssistantMessage {...props} />
-                </div>
-              )}
-            </div>
-          );
-        }
-
-        // 2. While loading (thinking / planning / running sub-agents without text yet):
-        if (activeRunning && isLatest && !hasContent) {
-          return (
-            <ThinkingActivityCard
-              isRunning={isRunning}
-              activeSubagent={activeDelegation?.sub_agent}
-              activeTask={activeDelegation?.task}
-              currentTodoTitle={currentTodoTitle}
-              completedSteps={completedSteps}
-            />
-          );
-        }
-
-        // 3. Once the agent finishes and returns a proper response,
-        // all thinking steps are cleanly invisible (hidden) as requested.
-        return <CopilotChatAssistantMessage {...props} />;
-      },
-      CopilotChatAssistantMessage
-    );
-  }, [isRunning, activeDelegation, currentTodoTitle, completedSteps]);
+  // CopilotKit v2 Message list reshaping:
+  // Drops intermediate empty assistant messages from past tool calls so they never take up virtualized rows or show empty toolbars
+  const transformMessages = useCallback(
+    (messages: any[]) => {
+      return messages.filter((msg, idx) => {
+        if (msg.role !== "assistant") return true;
+        const hasText = !!(msg.content && msg.content.trim().length > 0);
+        const hasCard = typeof (msg as any)?.generativeUI === "function";
+        const isLast = idx === messages.length - 1;
+        // Retain assistant message if it contains text, has an interactive UI card, or is currently executing as the latest turn
+        return hasText || hasCard || (isRunning && isLast);
+      });
+    },
+    [isRunning]
+  );
 
   // 2. Tool: Interactive Choice Card (for clarifying questions with selectable options)
   useHumanInTheLoop({
@@ -599,18 +615,28 @@ export default function Home() {
             position: "relative",
           }}
         >
-          <CopilotChat
-            messageView={{
-              assistantMessage: CustomAssistantMessage,
+          <AgentRunContext.Provider
+            value={{
+              isRunning,
+              activeDelegation,
+              currentTodoTitle,
+              completedSteps,
             }}
-            labels={{
-              modalHeaderTitle: "Idea Checker Coordinator",
-              welcomeMessageText:
-                "Welcome! Share any product, startup, or feature idea. I will generate targeted audience personas, moderate a multi-round focus group debate, and compute an objective viability scorecard.",
-              chatInputPlaceholder: "Type a message...",
-            }}
-            className="h-full"
-          />
+          >
+            <CopilotChat
+              messageView={{
+                assistantMessage: CustomAssistantMessage,
+                transformMessages,
+              }}
+              labels={{
+                modalHeaderTitle: "Idea Checker Coordinator",
+                welcomeMessageText:
+                  "Welcome! Share any product, startup, or feature idea. I will generate targeted audience personas, moderate a multi-round focus group debate, and compute an objective viability scorecard.",
+                chatInputPlaceholder: "Type a message...",
+              }}
+              className="h-full"
+            />
+          </AgentRunContext.Provider>
 
           {/* Docked Todo Progress Bar anchored above input */}
           <TodoProgressBar todos={todos} isRunning={isRunning} />
