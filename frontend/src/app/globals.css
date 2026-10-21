@@ -58,21 +58,14 @@ a {
   overflow-x: hidden !important;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 120px !important;
 }
 
 .copilotKitChat .copilotKitMessagesContainer {
   min-height: min-content !important;
   display: flex !important;
   flex-direction: column !important;
-  padding-bottom: 48px !important;
-}
-
-.copilotKitChat .copilotKitInput {
-  flex-shrink: 0 !important;
-  position: sticky !important;
-  bottom: 0 !important;
-  z-index: 10 !important;
-  background: #ffffff !important;
+  padding-bottom: 120px !important;
 }
 
 /* Scrollbar styling for smooth UX */

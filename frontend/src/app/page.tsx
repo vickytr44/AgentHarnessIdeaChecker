@@ -31,13 +31,10 @@ const AgentRunContext = React.createContext<AgentRunState>({
 
 const CustomAssistantMessage: typeof CopilotChatAssistantMessage = Object.assign(
   function CustomAssistantMessage(props: CopilotChatAssistantMessageProps) {
-    const { isRunning, activeDelegation, currentTodoTitle, completedSteps } =
-      React.useContext(AgentRunContext);
     const renderToolCall = useRenderToolCall();
-    const { message, messages, isRunning: msgRunning, isLatest } = props;
+    const { message, messages } = props;
     const content = typeof message?.content === "string" ? message.content : "";
     const hasContent = Boolean(content.trim());
-    const activeRunning = isRunning || msgRunning;
 
     // Dynamically check if any tool call has a registered UI/HITL renderer
     const hasRenderableTool = Boolean(
@@ -50,30 +47,42 @@ const CustomAssistantMessage: typeof CopilotChatAssistantMessage = Object.assign
     );
 
     // 1. If this message contains an interactive HITL card or has text content,
-    // delegate directly to CopilotChatAssistantMessage so CopilotKit renders the tool calls:
+    // delegate directly to CopilotChatAssistantMessage so CopilotKit renders the tool calls.
+    // Suppress action toolbar (copy, inspector) for interactive cards without text content:
     if (hasRenderableTool || hasContent) {
-      return <CopilotChatAssistantMessage {...props} />;
-    }
-
-    // 2. While loading/executing in the background (subagents, focus group, thinking without text/cards yet):
-    if (isLatest && activeRunning) {
       return (
-        <ThinkingActivityCard
-          isRunning={activeRunning}
-          activeSubagent={activeDelegation?.sub_agent}
-          activeTask={activeDelegation?.task}
-          currentTodoTitle={currentTodoTitle}
-          completedSteps={completedSteps}
+        <CopilotChatAssistantMessage
+          {...props}
+          toolbar={hasContent ? undefined : () => null}
         />
       );
     }
 
-    // 3. Completed background intermediate tool calls (e.g. todos_add, create_idea_personas)
-    // with no text and no HITL card: return null so they don't leave ghost rows or empty toolbars.
+    // 2. Intermediate background tool calls with no registered UI:
+    // return null so they don't leave ghost rows or empty toolbars (the cursor slot handles live thinking).
     return null;
   },
   CopilotChatAssistantMessage
 );
+
+const CustomChatCursor = (props: React.HTMLAttributes<HTMLDivElement>) => {
+  const { isRunning, activeDelegation, currentTodoTitle, completedSteps } =
+    React.useContext(AgentRunContext);
+  if (!isRunning) {
+    return <div {...props} style={{ display: "none" }} />;
+  }
+  return (
+    <div {...props} style={{ width: "100%", margin: "6px 0 10px", ...props.style }}>
+      <ThinkingActivityCard
+        isRunning={isRunning}
+        activeSubagent={activeDelegation?.sub_agent}
+        activeTask={activeDelegation?.task}
+        currentTodoTitle={currentTodoTitle}
+        completedSteps={completedSteps}
+      />
+    </div>
+  );
+};
 
 export default function Home() {
   // 1. Reactive Agent Subscription via AG-UI protocol
@@ -610,6 +619,9 @@ export default function Home() {
             position: "relative",
           }}
         >
+          {/* Docked Todo Progress Bar at top of panel */}
+          <TodoProgressBar todos={todos} isRunning={isRunning} />
+
           <AgentRunContext.Provider
             value={{
               isRunning,
@@ -621,6 +633,7 @@ export default function Home() {
             <CopilotChat
               messageView={{
                 assistantMessage: CustomAssistantMessage,
+                cursor: CustomChatCursor,
                 transformMessages,
               }}
               labels={{
@@ -629,12 +642,9 @@ export default function Home() {
                   "Welcome! Share any product, startup, or feature idea. I will generate targeted audience personas, moderate a multi-round focus group debate, and compute an objective viability scorecard.",
                 chatInputPlaceholder: "Type a message...",
               }}
-              className="h-full"
+              className="h-full flex-1 min-h-0"
             />
           </AgentRunContext.Provider>
-
-          {/* Docked Todo Progress Bar anchored above input */}
-          <TodoProgressBar todos={todos} isRunning={isRunning} />
         </section>
       </div>
     </main>

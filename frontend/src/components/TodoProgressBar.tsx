@@ -33,34 +33,149 @@ export function TodoProgressBar({ todos, isRunning = false }: TodoProgressBarPro
   return (
     <div
       style={{
-        position: "absolute",
-        bottom: "74px",
-        left: "14px",
-        right: "14px",
-        zIndex: 20,
+        position: "relative",
+        margin: "12px 14px 4px",
+        zIndex: 25,
         display: "flex",
         flexDirection: "column",
         alignItems: "stretch",
-        pointerEvents: "auto",
+        flexShrink: 0,
       }}
     >
-      {/* Expanded Checklist Popover */}
+      {/* Docked Task Bar (1-Line Compact View) */}
+      <div
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "10px",
+          padding: "7px 12px",
+          background: "rgba(255, 255, 255, 0.96)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: `1px solid ${
+            isAllCompleted ? "#86efac" : isRunning ? "#93c5fd" : "#cbd5e1"
+          }`,
+          borderRadius: "10px",
+          boxShadow: "0 2px 6px rgba(0, 0, 0, 0.04)",
+          cursor: "pointer",
+          transition: "all 0.15s ease",
+          userSelect: "none",
+        }}
+      >
+        {/* Left: Icon & Step Status */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            minWidth: 0,
+            flex: 1,
+          }}
+        >
+          <span style={{ fontSize: "14px", flexShrink: 0 }}>
+            {isAllCompleted ? "✅" : "📋"}
+          </span>
+
+          <span
+            style={{
+              fontSize: "12px",
+              fontWeight: 700,
+              color: isAllCompleted ? "#15803d" : "#0f172a",
+              flexShrink: 0,
+            }}
+          >
+            {isAllCompleted
+              ? "Plan Completed"
+              : `Step ${
+                  inProgressIndex >= 0 ? inProgressIndex + 1 : completedCount
+                } of ${totalCount}`}
+          </span>
+
+          <span
+            style={{
+              fontSize: "12px",
+              color: "#475569",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {isAllCompleted
+              ? "• All stages finished"
+              : activeStep
+              ? `• ${activeStep.title}`
+              : `• ${percent}% complete`}
+          </span>
+        </div>
+
+        {/* Right: Mini Progress Bar & Toggle Indicator */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          {/* Progress Bar */}
+          <div
+            style={{
+              width: "55px",
+              height: "5px",
+              background: "#e2e8f0",
+              borderRadius: "3px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${percent}%`,
+                height: "100%",
+                background: isAllCompleted
+                  ? "#10b981"
+                  : "linear-gradient(90deg, #3b82f6 0%, #10b981 100%)",
+                borderRadius: "3px",
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+
+          <span style={{ fontSize: "11px", fontWeight: 700, color: "#334155" }}>
+            {percent}%
+          </span>
+
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              color: "#64748b",
+              background: "#f1f5f9",
+              padding: "1px 6px",
+              borderRadius: "4px",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            {isExpanded ? "▲ Hide" : "▼ Steps"}
+          </span>
+        </div>
+      </div>
+
+      {/* Expanded Checklist Dropdown (Floats below the compact bar) */}
       {isExpanded && (
         <div
           style={{
-            marginBottom: "8px",
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            right: 0,
+            zIndex: 40,
             background: "#ffffff",
             border: "1px solid #cbd5e1",
             borderRadius: "14px",
             padding: "14px 16px",
             boxShadow:
-              "0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08)",
-            animation: "fadeInUp 0.18s ease-out",
+              "0 12px 28px -4px rgba(15, 23, 42, 0.16), 0 8px 12px -6px rgba(15, 23, 42, 0.08)",
+            animation: "fadeInDown 0.18s ease-out",
           }}
         >
           <style>{`
-            @keyframes fadeInUp {
-              from { opacity: 0; transform: translateY(6px); }
+            @keyframes fadeInDown {
+              from { opacity: 0; transform: translateY(-6px); }
               to { opacity: 1; transform: translateY(0); }
             }
           `}</style>
@@ -100,32 +215,37 @@ export function TodoProgressBar({ todos, isRunning = false }: TodoProgressBarPro
                   border: `1px solid ${isAllCompleted ? "#86efac" : "#e2e8f0"}`,
                 }}
               >
-                {completedCount} of {totalCount} completed ({percent}%)
+                {completedCount}/{totalCount} Completed
               </span>
+
               <button
-                onClick={() => setIsExpanded(false)}
-                title="Minimize checklist"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#64748b",
-                  fontSize: "12px",
-                  padding: "2px 4px",
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsExpanded(false);
                 }}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  fontSize: "14px",
+                  color: "#64748b",
+                  cursor: "pointer",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                }}
+                title="Close"
               >
                 ✕
               </button>
             </div>
           </div>
 
-          {/* Progress Track */}
+          {/* Progress Bar in popover */}
           <div
             style={{
               width: "100%",
-              height: "6px",
+              height: "5px",
               background: "#e2e8f0",
-              borderRadius: "3px",
+              borderRadius: "4px",
               overflow: "hidden",
               marginBottom: "12px",
             }}
@@ -137,35 +257,47 @@ export function TodoProgressBar({ todos, isRunning = false }: TodoProgressBarPro
                 background: isAllCompleted
                   ? "#10b981"
                   : "linear-gradient(90deg, #3b82f6 0%, #10b981 100%)",
-                borderRadius: "3px",
+                borderRadius: "4px",
                 transition: "width 0.3s ease",
               }}
             />
           </div>
 
-          {/* Checklist items */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {/* Step Items List */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              maxHeight: "240px",
+              overflowY: "auto",
+            }}
+          >
             {todos.map((item, idx) => {
               const isDone = item.status === "completed";
               const isInProg = item.status === "in_progress";
 
               return (
                 <div
-                  key={item.id || idx}
+                  key={item.id}
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: "10px",
                     padding: "8px 10px",
                     borderRadius: "8px",
-                    background: isInProg ? "#f0f7ff" : isDone ? "#fafbfc" : "#ffffff",
+                    background: isInProg
+                      ? "#eff6ff"
+                      : isDone
+                      ? "#f8fafc"
+                      : "#ffffff",
                     border: `1px solid ${
-                      isInProg ? "#bfdbfe" : isDone ? "#f1f5f9" : "#e2e8f0"
+                      isInProg ? "#bfdbfe" : isDone ? "#e2e8f0" : "#f1f5f9"
                     }`,
                     transition: "all 0.15s ease",
                   }}
                 >
-                  {/* Status Icon */}
+                  {/* Step status icon */}
                   {isDone ? (
                     <span
                       style={{
@@ -176,10 +308,9 @@ export function TodoProgressBar({ todos, isRunning = false }: TodoProgressBarPro
                         height: "20px",
                         borderRadius: "50%",
                         background: "#dcfce7",
-                        color: "#15803d",
-                        border: "1px solid #86efac",
+                        color: "#16a34a",
                         fontSize: "11px",
-                        fontWeight: 800,
+                        fontWeight: 700,
                         flexShrink: 0,
                       }}
                     >
@@ -194,9 +325,8 @@ export function TodoProgressBar({ todos, isRunning = false }: TodoProgressBarPro
                         width: "20px",
                         height: "20px",
                         borderRadius: "50%",
-                        background: "#eff6ff",
+                        background: "#dbeafe",
                         color: "#2563eb",
-                        border: "1px solid #bfdbfe",
                         fontSize: "11px",
                         fontWeight: 700,
                         flexShrink: 0,
@@ -293,122 +423,10 @@ export function TodoProgressBar({ todos, isRunning = false }: TodoProgressBarPro
               fontWeight: 500,
             }}
           >
-            ▲ Click to minimize bar
+            ▲ Click to minimize
           </div>
         </div>
       )}
-
-      {/* Docked Floating Task Bar (1-Line Compact View) */}
-      <div
-        onClick={() => setIsExpanded(!isExpanded)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "10px",
-          padding: "7px 12px",
-          background: "rgba(255, 255, 255, 0.94)",
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-          border: `1px solid ${
-            isAllCompleted ? "#86efac" : isRunning ? "#93c5fd" : "#cbd5e1"
-          }`,
-          borderRadius: "10px",
-          boxShadow: "0 3px 10px rgba(0, 0, 0, 0.06)",
-          cursor: "pointer",
-          transition: "all 0.15s ease",
-          userSelect: "none",
-        }}
-      >
-        {/* Left: Icon & Step Status */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            minWidth: 0,
-            flex: 1,
-          }}
-        >
-          <span style={{ fontSize: "14px", flexShrink: 0 }}>
-            {isAllCompleted ? "✅" : "📋"}
-          </span>
-
-          <span
-            style={{
-              fontSize: "12px",
-              fontWeight: 700,
-              color: isAllCompleted ? "#15803d" : "#0f172a",
-              flexShrink: 0,
-            }}
-          >
-            {isAllCompleted
-              ? "Plan Completed"
-              : `Step ${
-                  inProgressIndex >= 0 ? inProgressIndex + 1 : completedCount
-                } of ${totalCount}`}
-          </span>
-
-          <span
-            style={{
-              fontSize: "12px",
-              color: "#475569",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {isAllCompleted
-              ? "• All 4 stages finished"
-              : activeStep
-              ? `• ${activeStep.title}`
-              : `• ${percent}% complete`}
-          </span>
-        </div>
-
-        {/* Right: Mini Progress Bar & Toggle Indicator */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-          {/* Progress Bar */}
-          <div
-            style={{
-              width: "55px",
-              height: "5px",
-              background: "#e2e8f0",
-              borderRadius: "3px",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                width: `${percent}%`,
-                height: "100%",
-                background: isAllCompleted
-                  ? "#10b981"
-                  : "linear-gradient(90deg, #3b82f6 0%, #10b981 100%)",
-                borderRadius: "3px",
-                transition: "width 0.3s ease",
-              }}
-            />
-          </div>
-
-          <span style={{ fontSize: "11px", fontWeight: 700, color: "#334155" }}>
-            {percent}%
-          </span>
-
-          <span
-            style={{
-              fontSize: "10px",
-              color: "#64748b",
-              background: "#f1f5f9",
-              padding: "1px 5px",
-              borderRadius: "4px",
-              border: "1px solid #e2e8f0",
-            }}
-          >
-            {isExpanded ? "▼ Close" : "▲ View"}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }
