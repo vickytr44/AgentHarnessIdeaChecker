@@ -3,10 +3,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   CopilotChat,
-  AssistantMessage as DefaultAssistantMessage,
-  AssistantMessageProps,
-} from "@copilotkit/react-ui";
-import { useAgent, UseAgentUpdate, useHumanInTheLoop } from "@copilotkit/react-core/v2";
+  CopilotChatAssistantMessage,
+  CopilotChatAssistantMessageProps,
+  useAgent,
+  UseAgentUpdate,
+  useHumanInTheLoop,
+} from "@copilotkit/react-core/v2";
 import { z } from "zod";
 import { InteractiveChoiceCard } from "@/components/InteractiveChoiceCard";
 import { PlanApprovalCard } from "@/components/PlanApprovalCard";
@@ -339,60 +341,63 @@ export default function Home() {
     return list;
   }, [delegations, todos]);
 
-  const CustomAssistantMessage = useCallback(
-    (props: AssistantMessageProps) => {
-      const { isLoading, message, isCurrentMessage } = props;
-      const content = message?.content || "";
-      const hasContent = Boolean(content.trim());
-      const subComponent = message?.generativeUI?.() ?? props.subComponent;
+  const CustomAssistantMessage = useMemo(() => {
+    return Object.assign(
+      (props: CopilotChatAssistantMessageProps) => {
+        const { message, isRunning: msgRunning, isLatest } = props;
+        const content = typeof message?.content === "string" ? message.content : "";
+        const hasContent = Boolean(content.trim());
+        const subComponent = (message as any)?.generativeUI?.();
+        const activeRunning = isRunning || msgRunning;
 
-      // 1. If this message contains an interactive card (InteractiveChoiceCard, PlanApprovalCard):
-      if (subComponent) {
-        return (
-          <div style={{ marginBottom: "0.5rem" }}>
-            {subComponent}
-            {/* If the agent is still running / generating after the user's action,
-                display the ThinkingActivityCard underneath the confirmed card instead of 3 dots */}
-            {isLoading && isCurrentMessage !== false && !hasContent && (
-              <div style={{ marginTop: "10px" }}>
-                <ThinkingActivityCard
-                  isRunning={isRunning}
-                  activeSubagent={activeDelegation?.sub_agent}
-                  activeTask={activeDelegation?.task}
-                  currentTodoTitle={currentTodoTitle}
-                  completedSteps={completedSteps}
-                />
-              </div>
-            )}
-            {/* Render message text if arrived */}
-            {hasContent && (
-              <div style={{ marginTop: "10px" }}>
-                <DefaultAssistantMessage {...props} subComponent={undefined} />
-              </div>
-            )}
-          </div>
-        );
-      }
+        // 1. If this message contains an interactive card (InteractiveChoiceCard, PlanApprovalCard):
+        if (subComponent) {
+          return (
+            <div style={{ marginBottom: "0.5rem" }}>
+              {subComponent}
+              {/* If the agent is still running / generating after user action,
+                  display the ThinkingActivityCard underneath the confirmed card instead of 3 dots */}
+              {activeRunning && isLatest && !hasContent && (
+                <div style={{ marginTop: "10px" }}>
+                  <ThinkingActivityCard
+                    isRunning={isRunning}
+                    activeSubagent={activeDelegation?.sub_agent}
+                    activeTask={activeDelegation?.task}
+                    currentTodoTitle={currentTodoTitle}
+                    completedSteps={completedSteps}
+                  />
+                </div>
+              )}
+              {/* Render message text if arrived */}
+              {hasContent && (
+                <div style={{ marginTop: "10px" }}>
+                  <CopilotChatAssistantMessage {...props} />
+                </div>
+              )}
+            </div>
+          );
+        }
 
-      // 2. While loading (thinking / planning / running sub-agents without text yet):
-      if (isLoading && !hasContent) {
-        return (
-          <ThinkingActivityCard
-            isRunning={isRunning}
-            activeSubagent={activeDelegation?.sub_agent}
-            activeTask={activeDelegation?.task}
-            currentTodoTitle={currentTodoTitle}
-            completedSteps={completedSteps}
-          />
-        );
-      }
+        // 2. While loading (thinking / planning / running sub-agents without text yet):
+        if (activeRunning && isLatest && !hasContent) {
+          return (
+            <ThinkingActivityCard
+              isRunning={isRunning}
+              activeSubagent={activeDelegation?.sub_agent}
+              activeTask={activeDelegation?.task}
+              currentTodoTitle={currentTodoTitle}
+              completedSteps={completedSteps}
+            />
+          );
+        }
 
-      // 3. Once the agent finishes and returns a proper response,
-      // all thinking steps are cleanly invisible (hidden) as requested.
-      return <DefaultAssistantMessage {...props} />;
-    },
-    [isRunning, activeDelegation, currentTodoTitle, completedSteps]
-  );
+        // 3. Once the agent finishes and returns a proper response,
+        // all thinking steps are cleanly invisible (hidden) as requested.
+        return <CopilotChatAssistantMessage {...props} />;
+      },
+      CopilotChatAssistantMessage
+    );
+  }, [isRunning, activeDelegation, currentTodoTitle, completedSteps]);
 
   // 2. Tool: Interactive Choice Card (for clarifying questions with selectable options)
   useHumanInTheLoop({
@@ -595,14 +600,14 @@ export default function Home() {
           }}
         >
           <CopilotChat
-            AssistantMessage={CustomAssistantMessage}
-            icons={{
-              activityIcon: null,
+            messageView={{
+              assistantMessage: CustomAssistantMessage,
             }}
             labels={{
-              title: "Idea Checker Coordinator",
-              initial:
+              modalHeaderTitle: "Idea Checker Coordinator",
+              welcomeMessageText:
                 "Welcome! Share any product, startup, or feature idea. I will generate targeted audience personas, moderate a multi-round focus group debate, and compute an objective viability scorecard.",
+              chatInputPlaceholder: "Type a message...",
             }}
             className="h-full"
           />
