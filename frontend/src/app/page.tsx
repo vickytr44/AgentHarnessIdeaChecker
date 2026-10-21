@@ -35,28 +35,30 @@ const CustomAssistantMessage: typeof CopilotChatAssistantMessage = Object.assign
     const { message, isRunning: msgRunning, isLatest } = props;
     const content = typeof message?.content === "string" ? message.content : "";
     const hasContent = Boolean(content.trim());
-    const subComponent = (message as any)?.generativeUI?.();
     const activeRunning = isRunning || msgRunning;
 
-    // 1. If this message contains an interactive card (InteractiveChoiceCard, PlanApprovalCard):
-    if (subComponent) {
-      return (
-        <div style={{ marginBottom: "0.5rem" }}>
-          {subComponent}
-          {hasContent && (
-            <div style={{ marginTop: "10px" }}>
-              <CopilotChatAssistantMessage {...props} />
-            </div>
-          )}
-        </div>
-      );
+    // Check if this message contains a human-in-the-loop interactive tool call
+    const hasHitlTool = Boolean(
+      (message as any)?.toolCalls?.some(
+        (tc: any) =>
+          tc.function?.name === "ask_user_choice" ||
+          tc.function?.name === "request_plan_approval" ||
+          tc.name === "ask_user_choice" ||
+          tc.name === "request_plan_approval"
+      )
+    );
+
+    // 1. If this message contains an interactive HITL card (InteractiveChoiceCard, PlanApprovalCard)
+    // or has text content, delegate directly to CopilotChatAssistantMessage so CopilotKit renders the tool calls:
+    if (hasHitlTool || hasContent) {
+      return <CopilotChatAssistantMessage {...props} />;
     }
 
-    // 2. While loading (thinking / planning / running sub-agents without text yet):
-    if (isLatest && !hasContent) {
+    // 2. While loading/executing in the background (subagents, focus group, thinking without text/cards yet):
+    if (isLatest && activeRunning) {
       return (
         <ThinkingActivityCard
-          isRunning={activeRunning || true}
+          isRunning={activeRunning}
           activeSubagent={activeDelegation?.sub_agent}
           activeTask={activeDelegation?.task}
           currentTodoTitle={currentTodoTitle}
@@ -65,13 +67,8 @@ const CustomAssistantMessage: typeof CopilotChatAssistantMessage = Object.assign
       );
     }
 
-    // 3. For any message that has actual text content, render standard assistant message:
-    if (hasContent) {
-      return <CopilotChatAssistantMessage {...props} />;
-    }
-
-    // 4. Completed intermediate tool calls with no content and no interactive card:
-    // Return null so they do not render empty toolbars ([Copy] [Wrench]) or leave blank rows.
+    // 3. Completed background intermediate tool calls (e.g. todos_add, create_idea_personas)
+    // with no text and no HITL card: return null so they don't leave ghost rows or empty toolbars.
     return null;
   },
   CopilotChatAssistantMessage
@@ -400,15 +397,23 @@ export default function Home() {
   }, [delegations, todos]);
 
   // CopilotKit v2 Message list reshaping:
-  // Drops intermediate empty assistant messages from past tool calls while always keeping the active turn
+  // Drops intermediate empty assistant messages from past tool calls while always keeping HITL cards and active turn
   const transformMessages = useCallback((messages: any[]) => {
     return messages.filter((msg, idx) => {
       if (msg.role !== "assistant") return true;
       const hasText = !!(msg.content && msg.content.trim().length > 0);
-      const hasCard = typeof (msg as any)?.generativeUI === "function";
+      const hasHitl = Boolean(
+        (msg as any).toolCalls?.some(
+          (tc: any) =>
+            tc.function?.name === "ask_user_choice" ||
+            tc.function?.name === "request_plan_approval" ||
+            tc.name === "ask_user_choice" ||
+            tc.name === "request_plan_approval"
+        )
+      );
       const isLast = idx === messages.length - 1;
-      // Retain assistant message if it contains text, has an interactive UI card, or is the active latest turn
-      return hasText || hasCard || isLast;
+      // Retain assistant message if it contains text, has an interactive HITL card, or is the active latest turn
+      return hasText || hasHitl || isLast;
     });
   }, []);
 
